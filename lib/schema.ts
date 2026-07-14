@@ -45,4 +45,22 @@ export function validatePlanBudget(plan: Plan, budgetUsdt: number): void {
       }
     }
   }
+
+  const dependsOn = new Map(plan.tasks.map((t) => [t.id, t.depends_on]));
+  const state = new Map<string, "visiting" | "done">();
+
+  function visit(id: string, path: string[]): void {
+    const status = state.get(id);
+    if (status === "done") return;
+    if (status === "visiting") {
+      throw new Error(`Plan has a dependency cycle: ${[...path, id].join(" -> ")}`);
+    }
+    state.set(id, "visiting");
+    for (const dep of dependsOn.get(id) ?? []) {
+      visit(dep, [...path, id]);
+    }
+    state.set(id, "done");
+  }
+
+  for (const task of plan.tasks) visit(task.id, []);
 }

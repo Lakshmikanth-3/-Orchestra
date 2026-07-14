@@ -5,10 +5,10 @@ const execFileAsync = promisify(execFile);
 
 export class OnchainosError extends Error {}
 
-async function runJson(args: string[]): Promise<Record<string, unknown>> {
+async function runJson(args: string[], signal?: AbortSignal): Promise<Record<string, unknown>> {
   let stdout: string;
   try {
-    ({ stdout } = await execFileAsync("onchainos", args, { timeout: 45_000 }));
+    ({ stdout } = await execFileAsync("onchainos", args, { timeout: 45_000, signal }));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     throw new OnchainosError(`onchainos ${args.join(" ")} failed: ${message}`);
@@ -58,13 +58,13 @@ function toPaymentResult(res: Record<string, unknown>): X402PaymentResult {
 }
 
 /** Pays an accepts-based 402 (PAYMENT-REQUIRED header v2 / x402Version body v1). */
-export async function payX402(rawPayloadBase64: string, selectedIndex?: number): Promise<X402PaymentResult> {
+export async function payX402(rawPayloadBase64: string, selectedIndex?: number, signal?: AbortSignal): Promise<X402PaymentResult> {
   const args = ["payment", "pay", "--payload", rawPayloadBase64];
   if (selectedIndex !== undefined) args.push("--selected-index", String(selectedIndex));
-  return toPaymentResult(await runJson(args));
+  return toPaymentResult(await runJson(args, signal));
 }
 
 /** Pays a WWW-Authenticate: Payment challenge with intent="charge". */
-export async function chargeX402(challengeHeaderValue: string): Promise<X402PaymentResult> {
-  return toPaymentResult(await runJson(["payment", "charge", "--challenge", challengeHeaderValue]));
+export async function chargeX402(challengeHeaderValue: string, signal?: AbortSignal): Promise<X402PaymentResult> {
+  return toPaymentResult(await runJson(["payment", "charge", "--challenge", challengeHeaderValue], signal));
 }

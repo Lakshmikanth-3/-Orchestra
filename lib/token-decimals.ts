@@ -1,6 +1,7 @@
 import { createPublicClient, http, erc20Abi } from "viem";
 
 const XLAYER_RPC = "https://rpc.xlayer.tech";
+const XLAYER_NETWORK = "eip155:196";
 
 const client = createPublicClient({
   chain: { id: 196, name: "X Layer", nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 }, rpcUrls: { default: { http: [XLAYER_RPC] } } },
@@ -24,8 +25,17 @@ export async function getTokenDecimals(tokenAddress: string): Promise<number> {
   return decimals;
 }
 
-export async function atomicToHuman(amountAtomic: string, tokenAddress: string): Promise<number> {
+/**
+ * Converts an atomic token amount to a human-readable one via a real on-chain
+ * decimals() read. `network` (CAIP-2, e.g. "eip155:196") must match the chain
+ * this module actually queries — X Layer only, for now. A mismatch fails loudly
+ * rather than silently reading decimals() from the wrong chain.
+ */
+export async function atomicToHuman(amountAtomic: string, tokenAddress: string, network?: string): Promise<number> {
   if (!amountAtomic || !tokenAddress) return 0;
+  if (network && network !== XLAYER_NETWORK) {
+    throw new Error(`atomicToHuman: unsupported network "${network}" — this deployment only resolves decimals on ${XLAYER_NETWORK}`);
+  }
   const decimals = await getTokenDecimals(tokenAddress);
   return Number(amountAtomic) / 10 ** decimals;
 }

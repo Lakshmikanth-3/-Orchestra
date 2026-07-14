@@ -3,7 +3,6 @@ import { providerFor } from "./registry";
 import { callCoinAnk } from "./coinank";
 import { routeMarketDataRequest } from "./market-data-router";
 import { runInternalSkill } from "./skills";
-import { atomicToHuman } from "./token-decimals";
 
 export interface DispatchResult {
   taskId: string;
@@ -19,19 +18,18 @@ export interface DispatchResult {
  * market_data, or runs the matching internal Claude-backed skill otherwise.
  * Never fabricates a payload, a payment reference, or a cost.
  */
-export async function dispatch(task: PlanTask, context: Record<string, unknown>): Promise<DispatchResult> {
+export async function dispatch(task: PlanTask, context: Record<string, unknown>, signal?: AbortSignal): Promise<DispatchResult> {
   const provider = providerFor(task.capability);
 
   if (task.capability === "market_data") {
     const { path, query } = routeMarketDataRequest(task.prompt);
-    const result = await callCoinAnk(path, query, task.max_spend_usdt);
-    const costUsdt = result.paymentRef === "free_tier" ? 0 : await atomicToHuman(result.costAtomic, result.asset);
+    const result = await callCoinAnk(path, query, task.max_spend_usdt, signal);
     return {
       taskId: task.id,
       provider: provider.name,
       kind: "external_asp",
       payload: result.payload,
-      costUsdt,
+      costUsdt: result.costUsdt,
       paymentRef: result.paymentRef,
     };
   }

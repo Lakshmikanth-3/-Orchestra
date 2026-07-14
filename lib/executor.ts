@@ -3,20 +3,9 @@ import { dispatch } from "./dispatch";
 import { appendEvent, setRunStatus, saveReport, getRun } from "./ledger";
 import { publish } from "./bus";
 import { buildScoreReport } from "./report";
+import { providerFor } from "./registry";
 
 const TASK_TIMEOUT_MS = 60_000;
-
-async function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
-  let timer: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`task timed out after ${ms}ms`)), ms);
-  });
-  try {
-    return await Promise.race([promise, timeout]);
-  } finally {
-    clearTimeout(timer!);
-  }
-}
 
 async function emit(
   runId: string,
@@ -51,9 +40,13 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
   while (pending.length) {
     const runnable = pending.filter((t) => t.depends_on.every((d) => done.has(d) || failed.has(d)));
     if (!runnable.length) {
+      // A cycle among the remaining tasks (validatePlanBudget only rejects direct
+      // self-reference, not longer cycles) — fail them all and fall through to the
+      // normal settlement path below so the run still reports and emits "settled"
+      // instead of leaving connected SSE clients hanging forever.
+      for (const task of pending) failed.add(task.id);
       await emit(runId, "failed", null, { reason: "deadlock_detected", remaining: pending.map((t) => t.id) });
-      await setRunStatus(runId, "failed");
-      throw new Error("deadlock_detected: remaining tasks have unresolved dependencies");
+      break;
     }
 
     await Promise.all(
@@ -64,14 +57,17 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
           return;
         }
 
-        const provider = task.capability === "market_data" ? "CoinAnk" : "Orchestra internal skill";
+        const provider = providerFor(task.capability).name;
         await emit(runId, "hired", task.id, { capability: task.capability, provider });
 
         try {
           const context: Record<string, unknown> = {};
           for (const dep of task.depends_on) context[dep] = results[dep];
 
-          const result = await withTimeout(TASK_TIMEOUT_MS, dispatch(task, context));
+          // A real AbortSignal, not a Promise.race — this actually cancels the
+          // in-flight fetch/onchainos subprocess on timeout instead of letting a
+          // real payment keep running unaccounted for in the background.
+          const result = await dispatch(task, context, AbortSignal.timeout(TASK_TIMEOUT_MS));
           results[task.id] = result.payload;
           costs[task.id] = { provider: result.provider, kind: result.kind, costUsdt: result.costUsdt, paymentRef: result.paymentRef };
           totalSpentUsdt += result.costUsdt;

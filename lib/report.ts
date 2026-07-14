@@ -1,6 +1,7 @@
 import type { Plan, PlanTask } from "./schema";
 import type { ExecutionOutcome } from "./executor";
 import type { InternalSkillOutput } from "./skills";
+import { providerFor } from "./registry";
 
 export interface ReportSection {
   taskId: string;
@@ -42,11 +43,13 @@ export function buildScoreReport(
     const cost = outcome.costs[task.id];
     const { content, citedUrls } = failed ? { content: null, citedUrls: [] } : sectionContent(task, outcome.results[task.id]);
 
+    const provider = providerFor(task.capability);
+
     return {
       taskId: task.id,
       capability: task.capability,
-      provider: cost?.provider ?? (task.capability === "market_data" ? "CoinAnk" : "Orchestra internal skill"),
-      kind: cost?.kind === "external_asp" ? "external_asp" : "internal",
+      provider: cost?.provider ?? provider.name,
+      kind: provider.kind,
       status: failed ? "failed" : "delivered",
       costUsdt: cost?.costUsdt ?? 0,
       paymentRef: cost?.paymentRef ?? "n/a",

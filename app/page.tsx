@@ -33,7 +33,9 @@ const STATE_CLASS: Record<TaskState, string> = {
 export default function MissionControl() {
   const [intent, setIntent] = useState("");
   const [budget, setBudget] = useState(1);
-  const [operatorKey, setOperatorKey] = useState("");
+  const [operatorKey, setOperatorKey] = useState(() =>
+    typeof window === "undefined" ? "" : window.localStorage.getItem(OPERATOR_KEY_STORAGE) ?? ""
+  );
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<PlanTaskView[]>([]);
@@ -42,10 +44,7 @@ export default function MissionControl() {
   const [ledger, setLedger] = useState<LedgerEventView[]>([]);
   const esRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    const saved = window.localStorage.getItem(OPERATOR_KEY_STORAGE);
-    if (saved) setOperatorKey(saved);
-  }, []);
+  useEffect(() => () => esRef.current?.close(), []);
 
   const updateOperatorKey = (value: string) => {
     setOperatorKey(value);
@@ -75,6 +74,7 @@ export default function MissionControl() {
   }, []);
 
   const run = async () => {
+    esRef.current?.close();
     setError(null);
     setRunning(true);
     setTasks([]);

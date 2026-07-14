@@ -33,6 +33,28 @@ test("validatePlanBudget rejects a task depending on itself", () => {
   assert.throws(() => validatePlanBudget(plan, 1), /cannot depend on itself/);
 });
 
+test("validatePlanBudget rejects a multi-task dependency cycle", () => {
+  const plan = PlanSchema.parse({
+    tasks: [
+      { id: "t1", capability: "market_data", prompt: "p", depends_on: ["t2"], max_spend_usdt: 0 },
+      { id: "t2", capability: "risk_flags", prompt: "p", depends_on: ["t1"], max_spend_usdt: 0 },
+    ],
+  });
+  assert.throws(() => validatePlanBudget(plan, 1), /dependency cycle/);
+});
+
+test("validatePlanBudget passes a valid diamond-shaped dependency graph", () => {
+  const plan = PlanSchema.parse({
+    tasks: [
+      { id: "t1", capability: "market_data", prompt: "p", depends_on: [], max_spend_usdt: 0.1 },
+      { id: "t2", capability: "news_scan", prompt: "p", depends_on: ["t1"], max_spend_usdt: 0 },
+      { id: "t3", capability: "risk_flags", prompt: "p", depends_on: ["t1"], max_spend_usdt: 0 },
+      { id: "t4", capability: "synthesize_report", prompt: "p", depends_on: ["t2", "t3"], max_spend_usdt: 0 },
+    ],
+  });
+  assert.doesNotThrow(() => validatePlanBudget(plan, 1));
+});
+
 test("PlanSchema rejects more than 6 tasks", () => {
   const tasks = Array.from({ length: 7 }, (_, i) => ({
     id: `t${i}`,
