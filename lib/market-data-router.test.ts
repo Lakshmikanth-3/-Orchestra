@@ -38,3 +38,18 @@ test("routes long/short sentiment prompts to longshort/realtimeAll", () => {
   assert.equal(query.baseCoin, "ETH");
   assert.equal(query.interval, "1h");
 });
+
+test("routes net fund-flow prompts to fund/fundReal", () => {
+  const { path, query } = routeMarketDataRequest("Is there net capital inflow into SOL right now?");
+  assert.equal(path, "/api/fund/fundReal");
+  assert.equal(query.baseCoin, "SOL");
+  assert.equal(query.productType, "SWAP");
+  assert.equal(query.sortBy, "h1net");
+});
+
+test("distinguishes whale position size from aggregate fund flow", () => {
+  const whale = routeMarketDataRequest("Show me whale flows for $ETH");
+  assert.equal(whale.path, "/api/hyper/topPosition");
+  const flow = routeMarketDataRequest("What's the net outflow on ETH?");
+  assert.equal(flow.path, "/api/fund/fundReal");
+});

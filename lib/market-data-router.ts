@@ -24,6 +24,12 @@ export function routeMarketDataRequest(prompt: string): CoinAnkRequest {
   const lower = prompt.toLowerCase();
   const coin = extractCoin(prompt);
 
+  if (lower.includes("fund flow") || lower.includes("capital flow") || lower.includes("net flow") || lower.includes("inflow") || lower.includes("outflow")) {
+    return {
+      path: "/api/fund/fundReal",
+      query: { productType: "SWAP", page: "1", size: "50", sortBy: "h1net", sortType: "desc", baseCoin: coin },
+    };
+  }
   if (lower.includes("whale") || lower.includes("position")) {
     return {
       path: "/api/hyper/topPosition",
