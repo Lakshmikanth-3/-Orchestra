@@ -44,8 +44,9 @@ One Next.js 16 (App Router, TypeScript) app, plus one Foundry contract project:
 - **`lib/report.ts`** — the Score Report: itemized real costs, honest external/internal
   source attribution, Markdown + JSON.
 - **`contracts/`** — `OrchestraEscrow.sol`, a Foundry project. 6/6 tests passing
-  (lock/settle payout math, refund, duplicate-id guard, access control). Deploy with
-  `forge script script/Deploy.s.sol:Deploy --rpc-url https://rpc.xlayer.tech --private-key $DEPLOYER_PRIVATE_KEY --broadcast`.
+  (lock/settle payout math, refund, duplicate-id guard, access control). Deploy + verify
+  on OKLink in one step (see `contracts/script/Deploy.s.sol` for the full command):
+  `forge script script/Deploy.s.sol:Deploy --rpc-url https://rpc.xlayer.tech --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER --verifier-api-key $OKLINK_API_KEY`.
 
 ## No-mock mandate (owner directive)
 
@@ -70,6 +71,7 @@ Required for a fully live run:
 | `ORCHESTRA_AGENTIC_WALLET` | Orchestra's real EVM address (from `onchainos wallet balance`) |
 | `OKX_API_KEY` / `OKX_SECRET_KEY` / `OKX_PASSPHRASE` | inbound x402 facilitator (OKX Developer Portal) |
 | `DEPLOYER_PRIVATE_KEY` | X Layer mainnet contract deploy (never pasted in chat — fill directly in `.env`) |
+| `OKLINK_API_KEY` | optional — contract source verification on OKLink |
 | `ORCHESTRA_OPERATOR_KEY` | Mission Control's own operator-run path |
 
 The `onchainos` CLI must be installed and logged in (`onchainos wallet login <email>`) on
