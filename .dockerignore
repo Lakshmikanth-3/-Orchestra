@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+data
+*.db
+*.db-*
+contracts/out
+contracts/cache
+contracts/broadcast
+contracts/lib
+.env
+.env.*
+!.env.example
+npm-debug.log*

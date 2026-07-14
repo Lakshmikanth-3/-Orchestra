@@ -16,6 +16,7 @@
 
 FROM node:22-bookworm-slim AS base
 RUN corepack enable
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # --- Download & verify the real onchainos CLI binary (matches ~/.agents install) ---
 FROM base AS onchainos-fetch
@@ -27,11 +28,11 @@ RUN curl -fsSL -O "https://github.com/okx/onchainos-skills/releases/download/v4.
  && mv onchainos-x86_64-unknown-linux-gnu onchainos \
  && chmod +x onchainos
 
-# --- Install deps ---
+# --- Install full deps (needed to run `next build`) ---
 FROM base AS deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod=false
+RUN pnpm install --frozen-lockfile
 
 # --- Build ---
 FROM base AS build
@@ -40,12 +41,18 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN pnpm run build
 
+# --- Production-only deps for the runtime image ---
+FROM base AS prod-deps
+WORKDIR /app
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
 # --- Runtime ---
 FROM base AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=onchainos-fetch /tmp/onchainos/onchainos /usr/local/bin/onchainos
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/.next ./.next
 COPY --from=build /app/public ./public
 COPY package.json next.config.ts ./
