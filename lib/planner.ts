@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
-import { PlanSchema, validatePlanBudget, CAPABILITIES, type Plan } from "./schema";
+import { PlanSchema, validatePlanBudget, type Plan } from "./schema";
 
 const PLANNER_MODEL = "claude-sonnet-5";
 
