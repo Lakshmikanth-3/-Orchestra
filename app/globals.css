@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --pit: #0b0e14;
+  --score: #f2ede3;
+  --brass: #c9a227;
+  --tuning: #59c2d6;
+  --rest: #8a93a6;
+  --alert: #e4572e;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-pit: var(--pit);
+  --color-score: var(--score);
+  --color-brass: var(--brass);
+  --color-tuning: var(--tuning);
+  --color-rest: var(--rest);
+  --color-alert: var(--alert);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--pit);
+  color: var(--score);
+  font-family: var(--font-body), sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@keyframes pulse-tuning {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(89, 194, 214, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(89, 194, 214, 0);
+  }
+}
+
+.note-tuning {
+  animation: pulse-tuning 1.6s ease-in-out infinite;
 }

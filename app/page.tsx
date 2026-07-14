@@ -1,65 +1,187 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useCallback, useRef, useState } from "react";
+
+interface PlanTaskView {
+  id: string;
+  capability: string;
+  prompt: string;
+  depends_on: string[];
+  max_spend_usdt: number;
+}
+
+type TaskState = "rest" | "tuning" | "paid" | "done" | "failed";
+
+interface LedgerEventView {
+  id: number;
+  type: "planned" | "hired" | "paid" | "delivered" | "failed" | "settled";
+  taskId: string | null;
+  data: Record<string, unknown>;
+  createdAt: string;
+}
+
+const STATE_CLASS: Record<TaskState, string> = {
+  rest: "border-rest/50 text-rest",
+  tuning: "border-tuning text-tuning note-tuning",
+  paid: "border-brass bg-brass/10 text-brass",
+  done: "border-tuning bg-tuning/10 text-tuning",
+  failed: "border-alert bg-alert/10 text-alert",
+};
+
+export default function MissionControl() {
+  const [intent, setIntent] = useState("");
+  const [budget, setBudget] = useState(1);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<PlanTaskView[]>([]);
+  const [taskState, setTaskState] = useState<Record<string, TaskState>>({});
+  const [taskRef, setTaskRef] = useState<Record<string, string>>({});
+  const [ledger, setLedger] = useState<LedgerEventView[]>([]);
+  const esRef = useRef<EventSource | null>(null);
+
+  const handleEvent = useCallback((event: LedgerEventView) => {
+    setLedger((prev) => [...prev, event]);
+
+    if (event.type === "planned") {
+      const planned = (event.data.tasks as PlanTaskView[]) ?? [];
+      setTasks(planned);
+      setTaskState(Object.fromEntries(planned.map((t) => [t.id, "rest" as TaskState])));
+      return;
+    }
+    if (!event.taskId) return;
+
+    if (event.type === "hired") setTaskState((s) => ({ ...s, [event.taskId!]: "tuning" }));
+    if (event.type === "paid") {
+      setTaskState((s) => ({ ...s, [event.taskId!]: "paid" }));
+      setTaskRef((r) => ({ ...r, [event.taskId!]: String(event.data.ref ?? "") }));
+    }
+    if (event.type === "delivered") {
+      setTaskState((s) => (s[event.taskId!] === "paid" ? s : { ...s, [event.taskId!]: "done" }));
+    }
+    if (event.type === "failed") setTaskState((s) => ({ ...s, [event.taskId!]: "failed" }));
+  }, []);
+
+  const run = async () => {
+    setError(null);
+    setRunning(true);
+    setTasks([]);
+    setTaskState({});
+    setTaskRef({});
+    setLedger([]);
+
+    try {
+      const res = await fetch("/api/mc/orchestrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent, budget_usdt: budget }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.message ?? body.error ?? "Run failed to start");
+        setRunning(false);
+        return;
+      }
+
+      const es = new EventSource(body.stream);
+      esRef.current = es;
+      es.onmessage = (msg) => handleEvent(JSON.parse(msg.data));
+      es.addEventListener("error", () => {
+        es.close();
+        setRunning(false);
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Run failed to start");
+      setRunning(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <main className="flex flex-1 flex-col gap-6 p-6 md:flex-row">
+      <section className="w-full shrink-0 space-y-4 md:w-80">
+        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold text-score">
+          🎼 Orchestra
+        </h1>
+        <p className="text-sm text-rest">One intent in. An agent economy out.</p>
+
+        <textarea
+          className="h-32 w-full resize-none rounded border border-rest/40 bg-transparent p-3 text-sm text-score outline-none focus:border-tuning"
+          placeholder="Hand me a goal and a budget."
+          value={intent}
+          onChange={(e) => setIntent(e.target.value)}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-rest">Budget (USDT)</label>
+          <input
+            type="number"
+            min={0.1}
+            step={0.1}
+            value={budget}
+            onChange={(e) => setBudget(Number(e.target.value))}
+            className="w-24 rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus:border-tuning"
+          />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <button
+          onClick={run}
+          disabled={running || !intent.trim()}
+          className="w-full rounded bg-brass py-2 font-[family-name:var(--font-display)] font-bold text-pit disabled:opacity-40"
+        >
+          {running ? "Running…" : "Run"}
+        </button>
+
+        {error && <p className="text-sm text-alert">{error}</p>}
+      </section>
+
+      <section className="flex-1 space-y-6">
+        <div>
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-sm uppercase tracking-wide text-rest">
+            Score Rail
+          </h2>
+          <div className="flex gap-4 overflow-x-auto pb-2">
+            {tasks.length === 0 && <p className="text-sm text-rest">Waiting for a plan…</p>}
+            {tasks.map((task) => {
+              const state = taskState[task.id] ?? "rest";
+              const ref = taskRef[task.id];
+              return (
+                <div
+                  key={task.id}
+                  className={`min-w-48 shrink-0 rounded border-2 p-3 transition-colors ${STATE_CLASS[state]}`}
+                >
+                  <div className="font-[family-name:var(--font-display)] text-sm font-bold">
+                    {task.capability}
+                  </div>
+                  <div className="mt-1 text-xs opacity-80">{task.id}</div>
+                  {ref && (
+                    <div className="mt-2 truncate font-[family-name:var(--font-mono)] text-[10px]">
+                      {ref}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </main>
-    </div>
+
+        <div>
+          <h2 className="mb-3 font-[family-name:var(--font-display)] text-sm uppercase tracking-wide text-rest">
+            Settlement Ledger
+          </h2>
+          <div className="h-64 overflow-y-auto rounded border border-rest/20 bg-black/20 p-3 font-[family-name:var(--font-mono)] text-xs">
+            {ledger.length === 0 && <p className="text-rest">No events yet.</p>}
+            {ledger.map((event) => (
+              <div key={event.id} className="border-b border-rest/10 py-1">
+                <span className="text-tuning">{event.type}</span>
+                {event.taskId && <span className="text-rest"> · {event.taskId}</span>}
+                <span className="text-rest"> · {event.createdAt}</span>
+                <pre className="whitespace-pre-wrap text-[10px] text-score/70">
+                  {JSON.stringify(event.data)}
+                </pre>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
