@@ -36,5 +36,8 @@ export function routeMarketDataRequest(prompt: string): CoinAnkRequest {
   if (lower.includes("liquidation")) {
     return { path: "/api/liqMap/getLiqMap", query: { baseCoin: coin } };
   }
+  if (lower.includes("long") || lower.includes("short") || lower.includes("sentiment")) {
+    return { path: "/api/longshort/realtimeAll", query: { baseCoin: coin, interval: "1h" } };
+  }
   return { path: "/api/fundingRate/current", query: { type: "current" } };
 }

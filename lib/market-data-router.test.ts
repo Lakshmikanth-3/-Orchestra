@@ -31,3 +31,10 @@ test("defaults coin to BTC when no known ticker is mentioned", () => {
   const { query } = routeMarketDataRequest("whale positions please");
   assert.equal(query.baseCoin, "BTC");
 });
+
+test("routes long/short sentiment prompts to longshort/realtimeAll", () => {
+  const { path, query } = routeMarketDataRequest("What's the long/short sentiment on ETH?");
+  assert.equal(path, "/api/longshort/realtimeAll");
+  assert.equal(query.baseCoin, "ETH");
+  assert.equal(query.interval, "1h");
+});
