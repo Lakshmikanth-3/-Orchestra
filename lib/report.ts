@@ -20,6 +20,8 @@ export interface ScoreReport {
   intent: string;
   budgetUsdt: number;
   totalSpentUsdt: number;
+  approvedUsdt: number;
+  refundableUsdt: number;
   status: "completed" | "failed";
   sections: ReportSection[];
 }
@@ -58,6 +60,8 @@ export function buildScoreReport(
     intent: run.intent,
     budgetUsdt: run.budgetUsdt,
     totalSpentUsdt: outcome.totalSpentUsdt,
+    approvedUsdt: outcome.approvedUsdt,
+    refundableUsdt: outcome.refundableUsdt,
     status: outcome.failedTasks.length > 0 ? "failed" : "completed",
     sections,
   };
@@ -103,7 +107,9 @@ function renderMarkdown(report: ScoreReport): string {
     lines.push(`| ${s.taskId} | ${s.capability} | ${s.provider} | ${s.costUsdt} | \`${s.paymentRef}\` |`);
   }
   lines.push(``);
-  lines.push(`**Total spent:** ${report.totalSpentUsdt} USDT of ${report.budgetUsdt} USDT budget`);
+  lines.push(`**Total spent:** ${report.totalSpentUsdt} USDT of ${report.approvedUsdt} USDT approved for hiring`);
+  lines.push(`**Refundable:** ${report.refundableUsdt} USDT (unused hiring budget)`);
+  lines.push(`**Original run budget:** ${report.budgetUsdt} USDT`);
 
   return lines.join("\n");
 }

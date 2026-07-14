@@ -33,6 +33,8 @@ export interface ExecutionOutcome {
   costs: Record<string, { provider: string; kind: string; costUsdt: number; paymentRef: string }>;
   failedTasks: string[];
   totalSpentUsdt: number;
+  approvedUsdt: number;
+  refundableUsdt: number;
 }
 
 export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOutcome> {
@@ -93,7 +95,17 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
   const finalStatus = failed.size > 0 ? "failed" : "completed";
   await setRunStatus(runId, finalStatus);
 
-  const outcome: ExecutionOutcome = { results, costs, failedTasks: Array.from(failed), totalSpentUsdt };
+  const approvedUsdt = plan.tasks.reduce((sum, t) => sum + t.max_spend_usdt, 0);
+  const refundableUsdt = Math.max(0, approvedUsdt - totalSpentUsdt);
+
+  const outcome: ExecutionOutcome = {
+    results,
+    costs,
+    failedTasks: Array.from(failed),
+    totalSpentUsdt,
+    approvedUsdt,
+    refundableUsdt,
+  };
 
   const runRow = await getRun(runId);
   if (runRow) {
@@ -105,7 +117,12 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
     await saveReport(runId, json, markdown);
   }
 
-  await emit(runId, "settled", null, { totalSpentUsdt, failedTasks: Array.from(failed) });
+  await emit(runId, "settled", null, {
+    totalSpentUsdt,
+    approvedUsdt,
+    refundableUsdt,
+    failedTasks: Array.from(failed),
+  });
 
   return outcome;
 }
