@@ -81,7 +81,8 @@ not through a key stored in this repo.
 ## Tests
 
 ```bash
-pnpm test              # real unit tests for schema validation + market-data routing
+pnpm test               # fast, hermetic unit tests (schema, ledger, report, CoinAnk decode logic)
+pnpm test:live          # real network test against the live CoinAnk API (no credentials needed)
 cd contracts && forge test   # contract tests (6/6 passing)
 ```
 
