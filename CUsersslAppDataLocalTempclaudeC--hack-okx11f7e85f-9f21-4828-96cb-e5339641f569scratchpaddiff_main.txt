@@ -1,0 +1,427 @@
+diff --git a/app/api/orchestrate/route.ts b/app/api/orchestrate/route.ts
+new file mode 100644
+index 0000000..92e5fcb
+--- /dev/null
++++ b/app/api/orchestrate/route.ts
+@@ -0,0 +1,58 @@
++import { NextRequest, NextResponse } from "next/server";
++import { withX402 } from "@okxweb3/x402-next";
++import { z } from "zod";
++import { getResourceServer, facilitatorCredsConfigured, XLAYER_NETWORK, RUN_PRICE_USD } from "@/lib/x402-server";
++import { startRun, PlannerError } from "@/lib/orchestrate-handler";
++
++const OrchestrateRequestSchema = z.object({
++  intent: z.string().min(1),
++  budget_usdt: z.number().positive(),
++});
++
++async function handlePaidOrchestrate(req: NextRequest): Promise<NextResponse> {
++  const body = await req.json().catch(() => null);
++  const parsed = OrchestrateRequestSchema.safeParse(body);
++  if (!parsed.success) {
++    return NextResponse.json({ error: "invalid_request", details: parsed.error.flatten() }, { status: 400 });
++  }
++  try {
++    const result = await startRun(parsed.data.intent, parsed.data.budget_usdt, "x402");
++    return NextResponse.json(result);
++  } catch (err) {
++    const message = err instanceof PlannerError ? err.message : "planner_failed";
++    return NextResponse.json(
++      { error: "planner_failed", message, refundable_usdt: parsed.data.budget_usdt },
++      { status: 422 }
++    );
++  }
++}
++
++/** Real, paid A2MCP entry point — every machine-to-machine caller (OKX.AI listing) goes through here. */
++export async function POST(req: NextRequest) {
++  if (!facilitatorCredsConfigured()) {
++    return NextResponse.json(
++      {
++        error: "payment_gate_unconfigured",
++        message:
++          "Inbound x402 payment gate requires OKX_API_KEY/OKX_SECRET_KEY/OKX_PASSPHRASE " +
++          "(apply at https://web3.okx.com/onchainos/dev-portal).",
++      },
++      { status: 503 }
++    );
++  }
++
++  const wrapped = withX402(
++    handlePaidOrchestrate,
++    {
++      accepts: {
++        scheme: "exact",
++        price: RUN_PRICE_USD,
++        network: XLAYER_NETWORK,
++        payTo: process.env.ORCHESTRA_AGENTIC_WALLET!,
++      },
++      description: "Orchestra run: intent -> hired agents -> settled report",
++    },
++    getResourceServer()
++  );
++  return wrapped(req);
++}
+diff --git a/lib/coinank.ts b/lib/coinank.ts
+new file mode 100644
+index 0000000..af12277
+--- /dev/null
++++ b/lib/coinank.ts
+@@ -0,0 +1,99 @@
++import { payX402, chargeX402 } from "./onchainos";
++import { atomicToHuman } from "./token-decimals";
++
++const COINANK_BASE_URL = "https://open-api.coinank.com";
++
++export class CoinAnkError extends Error {}
++
++export interface CoinAnkCallResult {
++  payload: unknown;
++  costAtomic: string;
++  asset: string;
++  network: string;
++  paymentRef: string;
++}
++
++interface DecodedAccepts {
++  x402Version: number;
++  accepts: Array<{
++    scheme: string;
++    network: string;
++    amount: string;
++    asset: string;
++    payTo: string;
++  }>;
++  resource?: { url: string };
++}
++
++function decodePaymentRequired(headerValue: string): DecodedAccepts {
++  const json = Buffer.from(headerValue, "base64").toString("utf8");
++  return JSON.parse(json);
++}
++
++/**
++ * Calls a real CoinAnk endpoint. On a real HTTP 402, pays via the already
++ * logged-in Agentic Wallet through onchainos, then replays the exact same
++ * request with the returned authorization header. Never fabricates a
++ * payment or a payload — every field here comes from CoinAnk's real response.
++ */
++export async function callCoinAnk(
++  path: string,
++  query: Record<string, string> = {},
++  maxSpendUsdt = Infinity
++): Promise<CoinAnkCallResult> {
++  const url = new URL(path, COINANK_BASE_URL);
++  for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
++
++  const first = await fetch(url, { method: "GET" });
++
++  if (first.status !== 402) {
++    if (!first.ok) {
++      throw new CoinAnkError(`CoinAnk ${path} returned HTTP ${first.status}: ${await first.text()}`);
++    }
++    return { payload: await first.json(), costAtomic: "0", asset: "", network: "", paymentRef: "free_tier" };
++  }
++
++  const paymentRequiredHeader = first.headers.get("Payment-Required");
++  const wwwAuthenticate = first.headers.get("WWW-Authenticate");
++
++  if (paymentRequiredHeader) {
++    const decoded = decodePaymentRequired(paymentRequiredHeader);
++    const option = decoded.accepts.find((a) => a.scheme === "exact") ?? decoded.accepts[0];
++    const humanAmount = await atomicToHuman(option.amount, option.asset);
++    if (humanAmount > maxSpendUsdt) {
++      throw new CoinAnkError(
++        `CoinAnk ${path} price ${humanAmount} exceeds this task's approved cap of ${maxSpendUsdt} — refusing to pay`
++      );
++    }
++    const selectedIndex = decoded.accepts.indexOf(option);
++    const { authorizationHeader, headerName } = await payX402(paymentRequiredHeader, selectedIndex);
++    const replay = await fetch(url, { method: "GET", headers: { [headerName]: authorizationHeader } });
++    if (!replay.ok) {
++      throw new CoinAnkError(`CoinAnk ${path} replay after payment failed: HTTP ${replay.status}: ${await replay.text()}`);
++    }
++    return {
++      payload: await replay.json(),
++      costAtomic: option.amount,
++      asset: option.asset,
++      network: option.network,
++      paymentRef: authorizationHeader.slice(0, 32),
++    };
++  }
++
++  if (wwwAuthenticate?.startsWith("Payment ")) {
++    const { authorizationHeader, headerName } = await chargeX402(wwwAuthenticate);
++    const replay = await fetch(url, { method: "GET", headers: { [headerName]: authorizationHeader } });
++    if (!replay.ok) {
++      throw new CoinAnkError(`CoinAnk ${path} replay after payment failed: HTTP ${replay.status}: ${await replay.text()}`);
++    }
++    return {
++      payload: await replay.json(),
++      costAtomic: "",
++      asset: "",
++      network: "",
++      paymentRef: authorizationHeader.slice(0, 32),
++    };
++  }
++
++  throw new CoinAnkError(`CoinAnk ${path} returned 402 with no recognized payment challenge`);
++}
+diff --git a/lib/dispatch.ts b/lib/dispatch.ts
+new file mode 100644
+index 0000000..56f6334
+--- /dev/null
++++ b/lib/dispatch.ts
+@@ -0,0 +1,48 @@
++import type { PlanTask } from "./schema";
++import { providerFor } from "./registry";
++import { callCoinAnk } from "./coinank";
++import { routeMarketDataRequest } from "./market-data-router";
++import { runInternalSkill } from "./skills";
++import { atomicToHuman } from "./token-decimals";
++
++export interface DispatchResult {
++  taskId: string;
++  provider: string;
++  kind: "external_asp" | "internal";
++  payload: unknown;
++  costUsdt: number;
++  paymentRef: string;
++}
++
++/**
++ * Executes one plan task for real: pays and calls the live CoinAnk ASP for
++ * market_data, or runs the matching internal Claude-backed skill otherwise.
++ * Never fabricates a payload, a payment reference, or a cost.
++ */
++export async function dispatch(task: PlanTask, context: Record<string, unknown>): Promise<DispatchResult> {
++  const provider = providerFor(task.capability);
++
++  if (task.capability === "market_data") {
++    const { path, query } = routeMarketDataRequest(task.prompt);
++    const result = await callCoinAnk(path, query, task.max_spend_usdt);
++    const costUsdt = result.paymentRef === "free_tier" ? 0 : await atomicToHuman(result.costAtomic, result.asset);
++    return {
++      taskId: task.id,
++      provider: provider.name,
++      kind: "external_asp",
++      payload: result.payload,
++      costUsdt,
++      paymentRef: result.paymentRef,
++    };
++  }
++
++  const skillOutput = await runInternalSkill(task.capability, task.prompt, context);
++  return {
++    taskId: task.id,
++    provider: provider.name,
++    kind: "internal",
++    payload: skillOutput,
++    costUsdt: 0,
++    paymentRef: "internal",
++  };
++}
+diff --git a/lib/executor.ts b/lib/executor.ts
+new file mode 100644
+index 0000000..2488921
+--- /dev/null
++++ b/lib/executor.ts
+@@ -0,0 +1,128 @@
++import type { Plan, PlanTask } from "./schema";
++import { dispatch } from "./dispatch";
++import { appendEvent, setRunStatus, saveReport, getRun } from "./ledger";
++import { publish } from "./bus";
++import { buildScoreReport } from "./report";
++
++const TASK_TIMEOUT_MS = 60_000;
++
++async function withTimeout<T>(ms: number, promise: Promise<T>): Promise<T> {
++  let timer: ReturnType<typeof setTimeout>;
++  const timeout = new Promise<never>((_, reject) => {
++    timer = setTimeout(() => reject(new Error(`task timed out after ${ms}ms`)), ms);
++  });
++  try {
++    return await Promise.race([promise, timeout]);
++  } finally {
++    clearTimeout(timer!);
++  }
++}
++
++async function emit(
++  runId: string,
++  type: Parameters<typeof appendEvent>[1],
++  taskId: string | null,
++  data: Record<string, unknown>
++): Promise<void> {
++  const event = await appendEvent(runId, type, taskId, data);
++  publish(runId, event);
++}
++
++export interface ExecutionOutcome {
++  results: Record<string, unknown>;
++  costs: Record<string, { provider: string; kind: string; costUsdt: number; paymentRef: string }>;
++  failedTasks: string[];
++  totalSpentUsdt: number;
++  approvedUsdt: number;
++  refundableUsdt: number;
++}
++
++export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOutcome> {
++  await setRunStatus(runId, "running");
++  await emit(runId, "planned", null, { tasks: plan.tasks });
++
++  const done = new Set<string>();
++  const failed = new Set<string>();
++  const results: Record<string, unknown> = {};
++  const costs: ExecutionOutcome["costs"] = {};
++  let totalSpentUsdt = 0;
++  let pending = [...plan.tasks];
++
++  while (pending.length) {
++    const runnable = pending.filter((t) => t.depends_on.every((d) => done.has(d) || failed.has(d)));
++    if (!runnable.length) {
++      await emit(runId, "failed", null, { reason: "deadlock_detected", remaining: pending.map((t) => t.id) });
++      await setRunStatus(runId, "failed");
++      throw new Error("deadlock_detected: remaining tasks have unresolved dependencies");
++    }
++
++    await Promise.all(
++      runnable.map(async (task: PlanTask) => {
++        if (task.depends_on.some((d) => failed.has(d))) {
++          failed.add(task.id);
++          await emit(runId, "failed", task.id, { reason: "dependency_failed" });
++          return;
++        }
++
++        const provider = task.capability === "market_data" ? "CoinAnk" : "Orchestra internal skill";
++        await emit(runId, "hired", task.id, { capability: task.capability, provider });
++
++        try {
++          const context: Record<string, unknown> = {};
++          for (const dep of task.depends_on) context[dep] = results[dep];
++
++          const result = await withTimeout(TASK_TIMEOUT_MS, dispatch(task, context));
++          results[task.id] = result.payload;
++          costs[task.id] = { provider: result.provider, kind: result.kind, costUsdt: result.costUsdt, paymentRef: result.paymentRef };
++          totalSpentUsdt += result.costUsdt;
++
++          if (result.costUsdt > 0) {
++            await emit(runId, "paid", task.id, { usdt: result.costUsdt, ref: result.paymentRef, provider: result.provider });
++          }
++          await emit(runId, "delivered", task.id, { provider: result.provider, kind: result.kind });
++          done.add(task.id);
++        } catch (err) {
++          failed.add(task.id);
++          const message = err instanceof Error ? err.message : String(err);
++          await emit(runId, "failed", task.id, { error: message });
++        }
++      })
++    );
++
++    pending = pending.filter((t) => !done.has(t.id) && !failed.has(t.id));
++  }
++
++  const finalStatus = failed.size > 0 ? "failed" : "completed";
++  await setRunStatus(runId, finalStatus);
++
++  const approvedUsdt = plan.tasks.reduce((sum, t) => sum + t.max_spend_usdt, 0);
++  const refundableUsdt = Math.max(0, approvedUsdt - totalSpentUsdt);
++
++  const outcome: ExecutionOutcome = {
++    results,
++    costs,
++    failedTasks: Array.from(failed),
++    totalSpentUsdt,
++    approvedUsdt,
++    refundableUsdt,
++  };
++
++  const runRow = await getRun(runId);
++  if (runRow) {
++    const { json, markdown } = buildScoreReport(
++      { id: runId, intent: String(runRow.intent), budgetUsdt: Number(runRow.budget_usdt) },
++      plan,
++      outcome
++    );
++    await saveReport(runId, json, markdown);
++  }
++
++  await emit(runId, "settled", null, {
++    totalSpentUsdt,
++    approvedUsdt,
++    refundableUsdt,
++    failedTasks: Array.from(failed),
++  });
++
++  return outcome;
++}
+diff --git a/lib/planner.ts b/lib/planner.ts
+new file mode 100644
+index 0000000..7b71854
+--- /dev/null
++++ b/lib/planner.ts
+@@ -0,0 +1,64 @@
++import Anthropic from "@anthropic-ai/sdk";
++import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
++import { PlanSchema, validatePlanBudget, type Plan } from "./schema";
++
++const PLANNER_MODEL = "claude-sonnet-5";
++
++const SYSTEM_PROMPT = `You are Orchestra's planner for an agent-to-agent clearinghouse.
++
++Given a user's intent and total USDT budget, decompose it into a dependency-ordered
++task DAG.
++
++Hard rules:
++- At most 6 tasks.
++- Sum of all max_spend_usdt must be <= 60% of the total budget.
++- "market_data" is the only capability with a real external cost (paid ASP call);
++  give it a realistic non-zero max_spend_usdt. The other capabilities
++  (news_scan, risk_flags, synthesize_report) are internal skills — set their
++  max_spend_usdt to 0.
++- "synthesize_report" should typically depend on the other tasks so it runs last.
++- Every depends_on id must reference another task's id in this same plan.`;
++
++export class PlannerError extends Error {}
++
++async function callPlanner(client: Anthropic, intent: string, budgetUsdt: number): Promise<Plan> {
++  const response = await client.messages.parse({
++    model: PLANNER_MODEL,
++    max_tokens: 1200,
++    system: SYSTEM_PROMPT,
++    output_config: { format: zodOutputFormat(PlanSchema) },
++    messages: [
++      {
++        role: "user",
++        content: `Intent: ${intent}\nTotal budget USDT: ${budgetUsdt}`,
++      },
++    ],
++  });
++  if (!response.parsed_output) {
++    throw new PlannerError(`Planner response failed schema validation (stop_reason=${response.stop_reason})`);
++  }
++  return response.parsed_output;
++}
++
++export async function generatePlan(intent: string, budgetUsdt: number): Promise<Plan> {
++  if (!process.env.ANTHROPIC_API_KEY) {
++    throw new PlannerError("ANTHROPIC_API_KEY is not set — cannot generate a real plan");
++  }
++  const client = new Anthropic();
++
++  let lastError: unknown;
++  for (let attempt = 0; attempt < 2; attempt++) {
++    try {
++      const parsed = await callPlanner(client, intent, budgetUsdt);
++      validatePlanBudget(parsed, budgetUsdt);
++      return parsed;
++    } catch (err) {
++      lastError = err;
++    }
++  }
++  throw new PlannerError(
++    `Planner failed to produce a valid plan after retry: ${
++      lastError instanceof Error ? lastError.message : String(lastError)
++    }`
++  );
++}

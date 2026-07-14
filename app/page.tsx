@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const OPERATOR_KEY_STORAGE = "orchestra_operator_key";
 
 interface PlanTaskView {
   id: string;
@@ -31,6 +33,7 @@ const STATE_CLASS: Record<TaskState, string> = {
 export default function MissionControl() {
   const [intent, setIntent] = useState("");
   const [budget, setBudget] = useState(1);
+  const [operatorKey, setOperatorKey] = useState("");
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<PlanTaskView[]>([]);
@@ -38,6 +41,16 @@ export default function MissionControl() {
   const [taskRef, setTaskRef] = useState<Record<string, string>>({});
   const [ledger, setLedger] = useState<LedgerEventView[]>([]);
   const esRef = useRef<EventSource | null>(null);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(OPERATOR_KEY_STORAGE);
+    if (saved) setOperatorKey(saved);
+  }, []);
+
+  const updateOperatorKey = (value: string) => {
+    setOperatorKey(value);
+    window.localStorage.setItem(OPERATOR_KEY_STORAGE, value);
+  };
 
   const handleEvent = useCallback((event: LedgerEventView) => {
     setLedger((prev) => [...prev, event]);
@@ -72,7 +85,7 @@ export default function MissionControl() {
     try {
       const res = await fetch("/api/mc/orchestrate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-operator-key": operatorKey },
         body: JSON.stringify({ intent, budget_usdt: budget }),
       });
       const body = await res.json();
@@ -122,9 +135,21 @@ export default function MissionControl() {
           />
         </div>
 
+        <div className="space-y-1">
+          <label className="text-sm text-rest">Operator key</label>
+          <input
+            type="password"
+            value={operatorKey}
+            onChange={(e) => updateOperatorKey(e.target.value)}
+            placeholder="ORCHESTRA_OPERATOR_KEY"
+            className="w-full rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus:border-tuning"
+          />
+          <p className="text-xs text-rest">Held in this browser only — never shipped in the app bundle.</p>
+        </div>
+
         <button
           onClick={run}
-          disabled={running || !intent.trim()}
+          disabled={running || !intent.trim() || !operatorKey.trim()}
           className="w-full rounded bg-brass py-2 font-[family-name:var(--font-display)] font-bold text-pit disabled:opacity-40"
         >
           {running ? "Running…" : "Run"}

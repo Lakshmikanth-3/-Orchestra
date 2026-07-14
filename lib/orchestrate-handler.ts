@@ -1,9 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { generatePlan, PlannerError } from "./planner";
 import { executeDag } from "./executor";
 import { createRun } from "./ledger";
 
 export { PlannerError };
+
+export const OrchestrateRequestSchema = z.object({
+  intent: z.string().min(1),
+  budget_usdt: z.number().positive(),
+});
 
 export interface StartRunResult {
   run_id: string;

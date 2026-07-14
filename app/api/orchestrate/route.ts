@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@okxweb3/x402-next";
-import { z } from "zod";
 import { getResourceServer, facilitatorCredsConfigured, XLAYER_NETWORK, RUN_PRICE_USD } from "@/lib/x402-server";
-import { startRun, PlannerError } from "@/lib/orchestrate-handler";
-
-const OrchestrateRequestSchema = z.object({
-  intent: z.string().min(1),
-  budget_usdt: z.number().positive(),
-});
+import { startRun, PlannerError, OrchestrateRequestSchema } from "@/lib/orchestrate-handler";
 
 async function handlePaidOrchestrate(req: NextRequest): Promise<NextResponse> {
   const body = await req.json().catch(() => null);
