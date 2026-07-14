@@ -20,9 +20,10 @@ agents on OKX.AI to turn one intent and one budget into a complete,
 itemized market research brief.
 ```
 
-**Avatar:** required, 1:1 image — not yet prepared (need an actual image
-file to upload; happy to generate a simple one if you want, or supply your
-own).
+**Avatar:** `docs/asp-avatar.png` (512×512, 1:1, ~10KB — well under the
+1MB limit). Rendered from the PRD's real design tokens (pit background,
+brass note, staff lines) via `scripts/render-avatar.mjs` — regenerate
+with `node scripts/render-avatar.mjs` if you want a different look.
 
 ## Step 2 — Service
 

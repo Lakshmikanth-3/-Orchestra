@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  html, body { margin: 0; padding: 0; }
+  .square {
+    width: 512px;
+    height: 512px;
+    background: #0B0E14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    font-family: Georgia, serif;
+  }
+  .stave {
+    position: absolute;
+    left: 64px;
+    right: 64px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .line {
+    height: 3px;
+    background: #8A93A6;
+    opacity: 0.35;
+    margin-bottom: 34px;
+    border-radius: 2px;
+  }
+  .line:last-child { margin-bottom: 0; }
+  .note {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 168px;
+    height: 168px;
+    border-radius: 50%;
+    background: #C9A227;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 10px rgba(201, 162, 39, 0.18);
+  }
+  .note span {
+    font-size: 108px;
+    color: #0B0E14;
+    line-height: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="square">
+    <div class="stave">
+      <div class="line"></div>
+      <div class="line"></div>
+      <div class="line"></div>
+      <div class="line"></div>
+      <div class="line"></div>
+    </div>
+    <div class="note"><span>&#9835;</span></div>
+  </div>
+</body>
+</html>
