@@ -16,6 +16,12 @@ export interface LedgerEvent {
 
 let client: Client | null = null;
 
+/** Closes the underlying SQLite connection. For test cleanup only — the app itself keeps one open for its lifetime. */
+export function closeDb(): void {
+  client?.close();
+  client = null;
+}
+
 function db(): Client {
   if (client) return client;
   const dbPath = process.env.ORCHESTRA_DB_PATH ?? "./data/orchestra.db";
