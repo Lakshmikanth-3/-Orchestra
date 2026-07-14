@@ -24,7 +24,7 @@ interface DecodedAccepts {
   resource?: { url: string };
 }
 
-function decodePaymentRequired(headerValue: string): DecodedAccepts {
+export function decodePaymentRequired(headerValue: string): DecodedAccepts {
   const json = Buffer.from(headerValue, "base64").toString("utf8");
   return JSON.parse(json);
 }
@@ -36,7 +36,7 @@ interface WwwAuthenticateChallenge {
 }
 
 /** Parses `Payment id="...", request="<base64url>", ...` and decodes the real amount/currency/chainId it carries. */
-function decodeWwwAuthenticate(headerValue: string): WwwAuthenticateChallenge {
+export function decodeWwwAuthenticate(headerValue: string): WwwAuthenticateChallenge {
   const match = headerValue.match(/request="([^"]+)"/);
   if (!match) {
     throw new CoinAnkError(`WWW-Authenticate header has no request= field: ${headerValue}`);
@@ -47,7 +47,7 @@ function decodeWwwAuthenticate(headerValue: string): WwwAuthenticateChallenge {
 }
 
 /** A payment reference derived from the full authorization header (not a truncated prefix, which x402 headers often share). */
-function derivePaymentRef(authorizationHeader: string): string {
+export function derivePaymentRef(authorizationHeader: string): string {
   return createHash("sha256").update(authorizationHeader).digest("hex").slice(0, 16);
 }
 
