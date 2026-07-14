@@ -1,0 +1,37 @@
+# Render Blueprint for Orchestra ASP — free-tier deploy.
+#
+# Honest limitation (do not paper over): Render's free web-service plan has
+# no persistent disk and spins the instance down after ~15 min idle. That
+# means the SQLite run ledger (ORCHESTRA_DB_PATH) and the onchainos wallet
+# session (/root/.onchainos, see Dockerfile) do NOT survive a redeploy or a
+# cold-start recycle on this plan — the PRD's "a listed ASP cannot cold-sleep"
+# line (7.1) is not actually satisfied on free tier. Upgrading to a paid
+# instance + persistent disk is the real fix; this blueprint ships the free
+# path because that's what's available right now, not because the trade-off
+# is invisible.
+services:
+  - type: web
+    name: orchestra-asp
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ORCHESTRA_AGENTIC_WALLET
+        sync: false
+      - key: OKX_API_KEY
+        sync: false
+      - key: OKX_SECRET_KEY
+        sync: false
+      - key: OKX_PASSPHRASE
+        sync: false
+      - key: OKLINK_API_KEY
+        sync: false
+      - key: ORCHESTRA_OPERATOR_KEY
+        sync: false
+      - key: ORCHESTRA_DB_PATH
+        value: ./data/orchestra.db
+      - key: NODE_ENV
+        value: production

@@ -96,3 +96,26 @@ docker run -p 3000:3000 -v orchestra-data:/app/data -v orchestra-wallet:/root/.o
 See the comment block at the top of `Dockerfile` — the container needs its own `onchainos`
 wallet session (via `onchainos wallet login` inside the running container, persisted through
 the mounted volume), never one baked into the image.
+
+## Deploying to Render (free tier)
+
+`render.yaml` is a ready-to-use [Blueprint](https://render.com/docs/blueprint-spec) that builds
+straight from `Dockerfile` and wires up `/api/health` as the health check.
+
+1. Push this repo to GitHub (Render deploys from a connected Git repo).
+2. In the Render dashboard: **New > Blueprint**, point it at the repo — it reads `render.yaml`
+   automatically.
+3. Fill in the secret env vars Render will prompt for (`ANTHROPIC_API_KEY`,
+   `ORCHESTRA_AGENTIC_WALLET`, `OKX_API_KEY`/`OKX_SECRET_KEY`/`OKX_PASSPHRASE`,
+   `OKLINK_API_KEY`, `ORCHESTRA_OPERATOR_KEY`) — same values as your local `.env`.
+4. After first deploy, open a shell on the instance (Render dashboard > Shell) and run
+   `onchainos wallet login <email>` once so outbound CoinAnk payments have a real signed
+   session to use.
+
+**Known free-tier trade-off (not hidden):** Render's free plan has no persistent disk and
+spins the instance down after ~15 minutes idle. That means the SQLite ledger
+(`ORCHESTRA_DB_PATH`) and the `onchainos` wallet session from step 4 do **not** survive a
+redeploy or a cold-start recycle — every idle-then-woken instance starts with an empty
+ledger and a logged-out wallet. This conflicts with the PRD's "a listed ASP cannot cold-sleep"
+requirement (§7.1). The real fix is a paid instance + persistent disk; free tier is what's
+running for now because that's what's available, not because the gap is invisible.
