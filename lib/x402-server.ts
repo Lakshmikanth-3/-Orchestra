@@ -6,7 +6,16 @@ export const XLAYER_NETWORK = "eip155:196";
 export const RUN_PRICE_USD = "$0.5";
 
 export function facilitatorCredsConfigured(): boolean {
-  return Boolean(process.env.OKX_API_KEY && process.env.OKX_SECRET_KEY && process.env.OKX_PASSPHRASE);
+  // ORCHESTRA_AGENTIC_WALLET is included here, not just the OKX creds: it's
+  // the accepts.payTo recipient for every inbound payment. Without it the
+  // gate would otherwise pass this check and hand withX402 an undefined
+  // payTo instead of failing with a clear, explicit error.
+  return Boolean(
+    process.env.OKX_API_KEY &&
+      process.env.OKX_SECRET_KEY &&
+      process.env.OKX_PASSPHRASE &&
+      process.env.ORCHESTRA_AGENTIC_WALLET
+  );
 }
 
 let server: x402ResourceServer | null = null;

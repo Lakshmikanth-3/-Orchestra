@@ -29,7 +29,8 @@ export async function POST(req: NextRequest) {
         error: "payment_gate_unconfigured",
         message:
           "Inbound x402 payment gate requires OKX_API_KEY/OKX_SECRET_KEY/OKX_PASSPHRASE " +
-          "(apply at https://web3.okx.com/onchainos/dev-portal).",
+          "(apply at https://web3.okx.com/onchainos/dev-portal) and ORCHESTRA_AGENTIC_WALLET " +
+          "(the payment recipient address).",
       },
       { status: 503 }
     );
