@@ -1,8 +1,9 @@
 # Orchestra — ASP Registration Draft
 
 Prepared against the real field constraints in the OKX.AI registration flow
-(`identity-register.md` §3). Fill in the endpoint once a host is chosen —
-everything else is ready to paste in as-is.
+(`identity-register.md` §3). Host is Render (see `render.yaml`) — fill in the
+endpoint once the service is actually deployed there and has a real URL.
+Everything else is ready to paste in as-is.
 
 ## Step 1 — Identity
 
