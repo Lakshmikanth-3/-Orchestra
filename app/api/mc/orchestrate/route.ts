@@ -1,5 +1,15 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { startRun, PlannerError, OrchestrateRequestSchema } from "@/lib/orchestrate-handler";
+
+function safeKeyMatch(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  // Length must match before timingSafeEqual (it throws on mismatched buffer
+  // lengths) -- this route has a history of a real shipped auth bypass, so
+  // the comparison itself shouldn't leak timing information about the key.
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /**
  * Operator entry point for the Mission Control UI (PRD FR-7's "manual UI runs
@@ -13,7 +23,7 @@ import { startRun, PlannerError, OrchestrateRequestSchema } from "@/lib/orchestr
 export async function POST(req: NextRequest) {
   const operatorKey = req.headers.get("x-operator-key");
   const expected = process.env.ORCHESTRA_OPERATOR_KEY;
-  if (!expected || !operatorKey || operatorKey !== expected) {
+  if (!expected || !operatorKey || !safeKeyMatch(operatorKey, expected)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
