@@ -88,6 +88,76 @@ test("totals and refundable budget surface correctly in both json and markdown",
   assert.ok(markdown.includes("Refundable:** 0.1 USDT"));
 });
 
+test("a settled escrow mirror tx surfaces in both json and the markdown cost table", () => {
+  const plan = PlanSchema.parse({
+    tasks: [{ id: "t1", capability: "market_data", prompt: "p", depends_on: [], max_spend_usdt: 0.1 }],
+  });
+  const outcome: ExecutionOutcome = {
+    results: { t1: { some: "payload" } },
+    costs: {
+      t1: {
+        provider: "CoinAnk",
+        kind: "external_asp",
+        costUsdt: 0.001,
+        paymentRef: "abc123",
+        escrowLockTx: "0xlock111",
+        escrowSettleTx: "0xsettle222",
+      },
+    },
+    failedTasks: [],
+    totalSpentUsdt: 0.001,
+    approvedUsdt: 0.1,
+    refundableUsdt: 0.099,
+  };
+
+  const { json, markdown } = buildScoreReport(run, plan, outcome);
+  assert.equal(json.sections[0].escrowSettleTx, "0xsettle222");
+  assert.ok(markdown.includes("0xsettle222"));
+});
+
+test("an escrow mirror error surfaces as 'unsettled' in the markdown cost table instead of being silently dropped", () => {
+  const plan = PlanSchema.parse({
+    tasks: [{ id: "t1", capability: "market_data", prompt: "p", depends_on: [], max_spend_usdt: 0.1 }],
+  });
+  const outcome: ExecutionOutcome = {
+    results: { t1: { some: "payload" } },
+    costs: {
+      t1: {
+        provider: "CoinAnk",
+        kind: "external_asp",
+        costUsdt: 0.001,
+        paymentRef: "abc123",
+        escrowLockTx: "0xlock111",
+        escrowError: "settle reverted: TaskClosed",
+      },
+    },
+    failedTasks: [],
+    totalSpentUsdt: 0.001,
+    approvedUsdt: 0.1,
+    refundableUsdt: 0.099,
+  };
+
+  const { markdown } = buildScoreReport(run, plan, outcome);
+  assert.ok(markdown.includes("unsettled: settle reverted: TaskClosed"));
+});
+
+test("no escrow mirror configured renders a plain dash, not a blank cell", () => {
+  const plan = PlanSchema.parse({
+    tasks: [{ id: "t1", capability: "market_data", prompt: "p", depends_on: [], max_spend_usdt: 0.1 }],
+  });
+  const outcome: ExecutionOutcome = {
+    results: { t1: { some: "payload" } },
+    costs: { t1: { provider: "CoinAnk", kind: "external_asp", costUsdt: 0.001, paymentRef: "abc123" } },
+    failedTasks: [],
+    totalSpentUsdt: 0.001,
+    approvedUsdt: 0.1,
+    refundableUsdt: 0.099,
+  };
+
+  const { markdown } = buildScoreReport(run, plan, outcome);
+  assert.ok(markdown.includes("| t1 | market_data | CoinAnk | 0.001 | `abc123` | — |"));
+});
+
 test("failed sections never render fabricated content", () => {
   const plan = PlanSchema.parse({
     tasks: [{ id: "t1", capability: "news_scan", prompt: "p", depends_on: [], max_spend_usdt: 0 }],

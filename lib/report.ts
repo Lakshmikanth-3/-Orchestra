@@ -14,6 +14,9 @@ export interface ReportSection {
   content: unknown;
   citedUrls: string[];
   error?: string;
+  escrowLockTx?: string;
+  escrowSettleTx?: string;
+  escrowError?: string;
 }
 
 export interface ScoreReport {
@@ -55,6 +58,9 @@ export function buildScoreReport(
       paymentRef: cost?.paymentRef ?? "n/a",
       content,
       citedUrls,
+      escrowLockTx: cost?.escrowLockTx,
+      escrowSettleTx: cost?.escrowSettleTx,
+      escrowError: cost?.escrowError,
     };
   });
 
@@ -104,10 +110,11 @@ function renderMarkdown(report: ScoreReport): string {
 
   lines.push(`## Itemized Costs`);
   lines.push(``);
-  lines.push(`| Task | Capability | Provider | Cost (USDT) | Payment ref |`);
-  lines.push(`|---|---|---|---|---|`);
+  lines.push(`| Task | Capability | Provider | Cost (USDT) | Payment ref | On-chain mirror |`);
+  lines.push(`|---|---|---|---|---|---|`);
   for (const s of report.sections) {
-    lines.push(`| ${s.taskId} | ${s.capability} | ${s.provider} | ${s.costUsdt} | \`${s.paymentRef}\` |`);
+    const mirror = s.escrowSettleTx ? `\`${s.escrowSettleTx}\`` : s.escrowError ? `unsettled: ${s.escrowError}` : "—";
+    lines.push(`| ${s.taskId} | ${s.capability} | ${s.provider} | ${s.costUsdt} | \`${s.paymentRef}\` | ${mirror} |`);
   }
   lines.push(``);
   lines.push(`**Total spent:** ${report.totalSpentUsdt} USDT of ${report.approvedUsdt} USDT approved for hiring`);

@@ -18,9 +18,19 @@ async function emit(
   publish(runId, event);
 }
 
+export interface TaskCost {
+  provider: string;
+  kind: string;
+  costUsdt: number;
+  paymentRef: string;
+  escrowLockTx?: string;
+  escrowSettleTx?: string;
+  escrowError?: string;
+}
+
 export interface ExecutionOutcome {
   results: Record<string, unknown>;
-  costs: Record<string, { provider: string; kind: string; costUsdt: number; paymentRef: string }>;
+  costs: Record<string, TaskCost>;
   failedTasks: string[];
   totalSpentUsdt: number;
   approvedUsdt: number;
@@ -70,7 +80,8 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
           // real payment keep running unaccounted for in the background.
           const result = await dispatch(task, context, AbortSignal.timeout(TASK_TIMEOUT_MS));
           results[task.id] = result.payload;
-          costs[task.id] = { provider: result.provider, kind: result.kind, costUsdt: result.costUsdt, paymentRef: result.paymentRef };
+          const taskCost: TaskCost = { provider: result.provider, kind: result.kind, costUsdt: result.costUsdt, paymentRef: result.paymentRef };
+          costs[task.id] = taskCost;
           totalSpentUsdt += result.costUsdt;
 
           if (result.costUsdt > 0) {
@@ -81,18 +92,26 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
             // to the real agent address CoinAnk was actually paid to. This never
             // gates the real payment above — it's a supplementary receipt, so a
             // mirror failure is recorded, not thrown; the task is still delivered.
+            // Recorded on both the live event and the final report's cost table
+            // (report.ts) so the "glass-box" promise holds in both surfaces.
             if (result.kind === "external_asp" && result.payTo && isEscrowConfigured()) {
               try {
                 const lock = await lockTaskEscrow(runId, task.id, result.payTo);
                 paidData.escrowLockTx = lock.txHash;
+                taskCost.escrowLockTx = lock.txHash;
                 try {
                   const settle = await settleTaskEscrow(runId, task.id);
                   paidData.escrowSettleTx = settle.txHash;
+                  taskCost.escrowSettleTx = settle.txHash;
                 } catch (settleErr) {
-                  paidData.escrowSettleError = settleErr instanceof Error ? settleErr.message : String(settleErr);
+                  const message = settleErr instanceof Error ? settleErr.message : String(settleErr);
+                  paidData.escrowSettleError = message;
+                  taskCost.escrowError = message;
                 }
               } catch (lockErr) {
-                paidData.escrowLockError = lockErr instanceof Error ? lockErr.message : String(lockErr);
+                const message = lockErr instanceof Error ? lockErr.message : String(lockErr);
+                paidData.escrowLockError = message;
+                taskCost.escrowError = message;
               }
             }
 
