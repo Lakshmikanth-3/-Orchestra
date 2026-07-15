@@ -15,11 +15,13 @@ export interface LedgerEvent {
 }
 
 let client: Client | null = null;
+let migrated = false;
 
 /** Closes the underlying SQLite connection. For test cleanup only — the app itself keeps one open for its lifetime. */
 export function closeDb(): void {
   client?.close();
   client = null;
+  migrated = false;
 }
 
 function db(): Client {
@@ -32,6 +34,7 @@ function db(): Client {
 }
 
 export async function migrate(): Promise<void> {
+  if (migrated) return;
   const c = db();
   await c.execute(`
     CREATE TABLE IF NOT EXISTS runs (
@@ -55,6 +58,7 @@ export async function migrate(): Promise<void> {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `);
+  migrated = true;
 }
 
 export async function createRun(id: string, intent: string, budgetUsdt: number, paidVia: string): Promise<void> {
@@ -66,15 +70,18 @@ export async function createRun(id: string, intent: string, budgetUsdt: number, 
 }
 
 export async function setRunStatus(runId: string, status: RunStatus): Promise<void> {
+  await migrate();
   await db().execute({ sql: "UPDATE runs SET status = ? WHERE id = ?", args: [status, runId] });
 }
 
 export async function getRun(runId: string): Promise<Record<string, unknown> | null> {
+  await migrate();
   const res = await db().execute({ sql: "SELECT * FROM runs WHERE id = ?", args: [runId] });
   return (res.rows[0] as unknown as Record<string, unknown>) ?? null;
 }
 
 export async function saveReport(runId: string, reportJson: unknown, reportMarkdown: string): Promise<void> {
+  await migrate();
   await db().execute({
     sql: "UPDATE runs SET report_json = ?, report_markdown = ? WHERE id = ?",
     args: [JSON.stringify(reportJson), reportMarkdown, runId],
@@ -87,6 +94,7 @@ export async function appendEvent(
   taskId: string | null,
   data: Record<string, unknown>
 ): Promise<LedgerEvent> {
+  await migrate();
   const res = await db().execute({
     sql: "INSERT INTO events (run_id, type, task_id, data) VALUES (?, ?, ?, ?) RETURNING id, created_at",
     args: [runId, type, taskId, JSON.stringify(data)],
@@ -96,6 +104,7 @@ export async function appendEvent(
 }
 
 export async function getEvents(runId: string, afterId = 0): Promise<LedgerEvent[]> {
+  await migrate();
   const res = await db().execute({
     sql: "SELECT * FROM events WHERE run_id = ? AND id > ? ORDER BY id ASC",
     args: [runId, afterId],
