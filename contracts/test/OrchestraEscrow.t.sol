@@ -86,4 +86,39 @@ contract OrchestraEscrowTest is Test {
         assertFalse(ok);
         assertEq(bytes4(data), OrchestraEscrow.NotMaster.selector);
     }
+
+    // settle() and refund() are the two functions that actually move real
+    // value out of the contract -- a regression that silently dropped
+    // onlyMaster from either would previously pass the full suite green.
+    function test_onlyMasterCanSettle() public {
+        bytes32 id = keccak256("task-7");
+        escrow.lock{value: 1 ether}(id, client, agent);
+
+        address badActor = makeAddr("bad-actor-settle");
+        vm.prank(badActor);
+        (bool ok, bytes memory data) = address(escrow).call(abi.encodeWithSelector(escrow.settle.selector, id));
+        assertFalse(ok);
+        assertEq(bytes4(data), OrchestraEscrow.NotMaster.selector);
+
+        // the rejected call must not have corrupted state -- the real master
+        // can still settle it normally afterward.
+        escrow.settle(id);
+        (, , , OrchestraEscrow.Status finalStatus) = escrow.tasks(id);
+        assertEq(uint8(finalStatus), uint8(OrchestraEscrow.Status.Settled));
+    }
+
+    function test_onlyMasterCanRefund() public {
+        bytes32 id = keccak256("task-8");
+        escrow.lock{value: 1 ether}(id, client, agent);
+
+        address badActor = makeAddr("bad-actor-refund");
+        vm.prank(badActor);
+        (bool ok, bytes memory data) = address(escrow).call(abi.encodeWithSelector(escrow.refund.selector, id));
+        assertFalse(ok);
+        assertEq(bytes4(data), OrchestraEscrow.NotMaster.selector);
+
+        escrow.refund(id);
+        (, , , OrchestraEscrow.Status finalStatus) = escrow.tasks(id);
+        assertEq(uint8(finalStatus), uint8(OrchestraEscrow.Status.Refunded));
+    }
 }
