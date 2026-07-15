@@ -4,6 +4,7 @@ import { appendEvent, setRunStatus, saveReport, getRun } from "./ledger";
 import { publish } from "./bus";
 import { buildScoreReport } from "./report";
 import { providerFor } from "./registry";
+import { isEscrowConfigured, lockTaskEscrow, settleTaskEscrow } from "./escrow";
 
 const TASK_TIMEOUT_MS = 60_000;
 
@@ -73,7 +74,29 @@ export async function executeDag(runId: string, plan: Plan): Promise<ExecutionOu
           totalSpentUsdt += result.costUsdt;
 
           if (result.costUsdt > 0) {
-            await emit(runId, "paid", task.id, { usdt: result.costUsdt, ref: result.paymentRef, provider: result.provider });
+            const paidData: Record<string, unknown> = { usdt: result.costUsdt, ref: result.paymentRef, provider: result.provider };
+
+            // On-chain mirror (PRD §7.5, Vision Layer): a real lock+settle on
+            // X Layer mainnet using Orchestra's own treasury micro-funds, keyed
+            // to the real agent address CoinAnk was actually paid to. This never
+            // gates the real payment above — it's a supplementary receipt, so a
+            // mirror failure is recorded, not thrown; the task is still delivered.
+            if (result.kind === "external_asp" && result.payTo && isEscrowConfigured()) {
+              try {
+                const lock = await lockTaskEscrow(runId, task.id, result.payTo);
+                paidData.escrowLockTx = lock.txHash;
+                try {
+                  const settle = await settleTaskEscrow(runId, task.id);
+                  paidData.escrowSettleTx = settle.txHash;
+                } catch (settleErr) {
+                  paidData.escrowSettleError = settleErr instanceof Error ? settleErr.message : String(settleErr);
+                }
+              } catch (lockErr) {
+                paidData.escrowLockError = lockErr instanceof Error ? lockErr.message : String(lockErr);
+              }
+            }
+
+            await emit(runId, "paid", task.id, paidData);
           }
           await emit(runId, "delivered", task.id, { provider: result.provider, kind: result.kind });
           done.add(task.id);

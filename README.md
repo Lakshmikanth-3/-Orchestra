@@ -38,15 +38,24 @@ One Next.js 16 (App Router, TypeScript) app, plus one Foundry contract project:
   Wallet, then replays the request. `lib/token-decimals.ts` resolves the real ERC-20
   `decimals()` on-chain (viem) so costs are never guessed.
 - **`lib/executor.ts`** — topological wave executor (`Promise.all` per wave), 60s per-task
-  timeout, dependency-failure cascade, and refundable-budget accounting.
+  timeout, dependency-failure cascade, and refundable-budget accounting. After a real
+  external-ASP payment settles, it also fires the `lib/escrow.ts` on-chain mirror
+  (see below) when configured — a mirror failure is recorded on the event, never thrown,
+  since the real payment already happened regardless.
 - **`lib/ledger.ts`** — SQLite (libsql) run ledger: `planned/hired/paid/delivered/failed/settled`
   events, streamed live via `app/api/runs/[id]/stream` (SSE).
 - **`lib/report.ts`** — the Score Report: itemized real costs, honest external/internal
   source attribution, Markdown + JSON.
+- **`lib/escrow.ts`** — the on-chain mirror (PRD §7.5 Vision Layer): after a real CoinAnk
+  payment, calls `lock()` then `settle()` on the deployed `OrchestraEscrow` (X Layer
+  mainnet, viem), keyed by `keccak256(runId:taskId)` so plan task ids that repeat across
+  runs never collide on-chain. Entirely optional — unset `ORCHESTRA_ESCROW_ADDRESS` and
+  it's skipped, since it mirrors an already-completed payment rather than gating it.
 - **`contracts/`** — `OrchestraEscrow.sol`, a Foundry project. 6/6 tests passing
   (lock/settle payout math, refund, duplicate-id guard, access control). Deploy + verify
   on OKLink in one step (see `contracts/script/Deploy.s.sol` for the full command):
   `forge script script/Deploy.s.sol:Deploy --rpc-url https://rpc.xlayer.tech --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER --verifier-api-key $OKLINK_API_KEY`.
+  After deploy, set `ORCHESTRA_ESCROW_ADDRESS` to the printed address to turn on the mirror.
 
 ## No-mock mandate (owner directive)
 
@@ -70,9 +79,11 @@ Required for a fully live run:
 | `ANTHROPIC_API_KEY` | planner + internal skills |
 | `ORCHESTRA_AGENTIC_WALLET` | Orchestra's real EVM address (from `onchainos wallet balance`) |
 | `OKX_API_KEY` / `OKX_SECRET_KEY` / `OKX_PASSPHRASE` | inbound x402 facilitator (OKX Developer Portal) |
-| `DEPLOYER_PRIVATE_KEY` | X Layer mainnet contract deploy (never pasted in chat — fill directly in `.env`) |
+| `DEPLOYER_PRIVATE_KEY` | X Layer mainnet contract deploy (never pasted in chat — fill directly in `.env`); also signs the runtime escrow mirror calls in `lib/escrow.ts` |
 | `OKLINK_API_KEY` | optional — contract source verification on OKLink |
 | `ORCHESTRA_OPERATOR_KEY` | Mission Control's own operator-run path |
+| `ORCHESTRA_ESCROW_ADDRESS` | optional — deployed `OrchestraEscrow` address; unset skips on-chain mirroring |
+| `ESCROW_MIRROR_VALUE_WEI` | optional — per-task mirror value in OKB wei, defaults to 0.0001 OKB |
 
 The `onchainos` CLI must be installed and logged in (`onchainos wallet login <email>`) on
 whatever host runs this service — outbound CoinAnk payments are signed through that session,

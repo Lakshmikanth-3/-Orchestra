@@ -27,11 +27,12 @@ test("decodePaymentRequired throws on truncated/invalid base64 JSON rather than 
   assert.throws(() => decodePaymentRequired("not-valid-base64-json!!!"));
 });
 
-test("decodeWwwAuthenticate extracts the real amount/currency/chainId from the request= field", () => {
+test("decodeWwwAuthenticate extracts the real amount/currency/chainId/recipient from the request= field", () => {
   const challenge = decodeWwwAuthenticate(REAL_WWW_AUTHENTICATE_HEADER);
   assert.equal(challenge.amount, "1000");
   assert.equal(challenge.currency, "0x4ae46a509f6b1d9056937ba4500cb143933d2dc8");
   assert.equal(challenge.chainId, 196);
+  assert.equal(challenge.recipient, "0xb1257e75791baa36646113d8b1fdfc83b3e2d0b7");
 });
 
 test("decodeWwwAuthenticate throws a clean error when request= is missing", () => {

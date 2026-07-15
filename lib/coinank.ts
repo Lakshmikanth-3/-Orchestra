@@ -10,6 +10,8 @@ export interface CoinAnkCallResult {
   payload: unknown;
   costUsdt: number;
   paymentRef: string;
+  /** The real on-chain address CoinAnk was paid to, when a payment actually happened. */
+  payTo?: string;
 }
 
 interface DecodedAccepts {
@@ -33,9 +35,10 @@ interface WwwAuthenticateChallenge {
   amount: string;
   currency: string;
   chainId: number;
+  recipient: string;
 }
 
-/** Parses `Payment id="...", request="<base64url>", ...` and decodes the real amount/currency/chainId it carries. */
+/** Parses `Payment id="...", request="<base64url>", ...` and decodes the real amount/currency/chainId/recipient it carries. */
 export function decodeWwwAuthenticate(headerValue: string): WwwAuthenticateChallenge {
   const match = headerValue.match(/request="([^"]+)"/);
   if (!match) {
@@ -43,7 +46,7 @@ export function decodeWwwAuthenticate(headerValue: string): WwwAuthenticateChall
   }
   const json = Buffer.from(match[1], "base64url").toString("utf8");
   const parsed = JSON.parse(json);
-  return { amount: parsed.amount, currency: parsed.currency, chainId: parsed.methodDetails?.chainId };
+  return { amount: parsed.amount, currency: parsed.currency, chainId: parsed.methodDetails?.chainId, recipient: parsed.recipient };
 }
 
 /** A payment reference derived from the full authorization header (not a truncated prefix, which x402 headers often share). */
@@ -100,6 +103,7 @@ export async function callCoinAnk(
       payload: await replay.json(),
       costUsdt: humanAmount,
       paymentRef: derivePaymentRef(authorizationHeader),
+      payTo: option.payTo,
     };
   }
 
@@ -120,6 +124,7 @@ export async function callCoinAnk(
       payload: await replay.json(),
       costUsdt: humanAmount,
       paymentRef: derivePaymentRef(authorizationHeader),
+      payTo: challenge.recipient,
     };
   }
 

@@ -11,6 +11,8 @@ export interface DispatchResult {
   payload: unknown;
   costUsdt: number;
   paymentRef: string;
+  /** The real address the external ASP was paid to, when a real payment happened. */
+  payTo?: string;
 }
 
 /**
@@ -31,6 +33,7 @@ export async function dispatch(task: PlanTask, context: Record<string, unknown>,
       payload: result.payload,
       costUsdt: result.costUsdt,
       paymentRef: result.paymentRef,
+      payTo: result.payTo,
     };
   }
 
