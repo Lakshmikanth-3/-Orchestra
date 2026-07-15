@@ -53,3 +53,18 @@ test("distinguishes whale position size from aggregate fund flow", () => {
   const flow = routeMarketDataRequest("What's the net outflow on ETH?");
   assert.equal(flow.path, "/api/fund/fundReal");
 });
+
+test("does not false-positive match a ticker embedded inside an unrelated word (regression: 'CANADA' contains 'ADA')", () => {
+  const { query } = routeMarketDataRequest("Show me whale positions given Canada's regulatory stance");
+  assert.equal(query.baseCoin, "BTC");
+});
+
+test("does not false-positive match a ticker embedded inside an unrelated word (regression: 'SUITE' contains 'SUI')", () => {
+  const { query } = routeMarketDataRequest("liquidation risk for the C-suite's holdings");
+  assert.equal(query.baseCoin, "BTC");
+});
+
+test("still matches a real ticker mentioned as a standalone word", () => {
+  const { query } = routeMarketDataRequest("What's the open interest on ADA?");
+  assert.equal(query.baseCoin, "ADA");
+});

@@ -5,7 +5,10 @@ function extractCoin(prompt: string): string {
   if (dollarMatch) return dollarMatch[1].toUpperCase();
   const upper = prompt.toUpperCase();
   for (const coin of KNOWN_COINS) {
-    if (upper.includes(coin)) return coin;
+    // Word-boundary match, not a plain substring check — "CANADA" contains
+    // "ADA" and "SUITE" contains "SUI", which would otherwise silently route
+    // a real paid CoinAnk call to the wrong asset.
+    if (new RegExp(`\\b${coin}\\b`).test(upper)) return coin;
   }
   return "BTC";
 }
