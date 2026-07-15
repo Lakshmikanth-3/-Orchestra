@@ -186,9 +186,9 @@ export default function MissionControl() {
           </button>
 
           {error && (
-            <p role="alert" className="flex items-start gap-2 rounded-lg border border-alert/40 bg-alert/10 p-2 text-xs text-alert">
+            <p role="alert" className="flex min-w-0 items-start gap-2 rounded-lg border border-alert/40 bg-alert/10 p-2 text-xs text-alert">
               <AlertIcon className="h-4 w-4 shrink-0" />
-              <span>{error}</span>
+              <span className="min-w-0 break-words">{error}</span>
             </p>
           )}
 
