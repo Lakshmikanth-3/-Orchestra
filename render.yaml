@@ -31,6 +31,12 @@ services:
         sync: false
       - key: ORCHESTRA_OPERATOR_KEY
         sync: false
+      - key: DEPLOYER_PRIVATE_KEY
+        sync: false
+      - key: ORCHESTRA_ESCROW_ADDRESS
+        sync: false
+      - key: ESCROW_MIRROR_VALUE_WEI
+        sync: false
       - key: ORCHESTRA_DB_PATH
         value: ./data/orchestra.db
       - key: NODE_ENV
