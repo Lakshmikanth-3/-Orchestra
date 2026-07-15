@@ -54,6 +54,10 @@ export default function MissionControl() {
   const handleEvent = useCallback((event: LedgerEventView) => {
     setLedger((prev) => [...prev, event]);
 
+    if (event.type === "settled") {
+      setRunning(false);
+      return;
+    }
     if (event.type === "planned") {
       const planned = (event.data.tasks as PlanTaskView[]) ?? [];
       setTasks(planned);
@@ -68,6 +72,11 @@ export default function MissionControl() {
       setTaskRef((r) => ({ ...r, [event.taskId!]: String(event.data.ref ?? "") }));
     }
     if (event.type === "delivered") {
+      // Paid tasks stay on the brass "paid" state — that's the Score Rail's
+      // money shot per the design spec, not a stale status. "done" is the
+      // distinct terminal state for internal skills, which never get a
+      // "paid" event (cost is always 0), so they'd otherwise be stuck
+      // looking "still tuning" forever after they actually finish.
       setTaskState((s) => (s[event.taskId!] === "paid" ? s : { ...s, [event.taskId!]: "done" }));
     }
     if (event.type === "failed") setTaskState((s) => ({ ...s, [event.taskId!]: "failed" }));
@@ -97,7 +106,14 @@ export default function MissionControl() {
 
       const es = new EventSource(body.stream);
       esRef.current = es;
-      es.onmessage = (msg) => handleEvent(JSON.parse(msg.data));
+      es.onmessage = (msg) => {
+        try {
+          handleEvent(JSON.parse(msg.data));
+        } catch {
+          setError("Received a malformed event from the server — see console for the raw payload");
+          console.error("Malformed SSE payload:", msg.data);
+        }
+      };
       es.addEventListener("error", () => {
         es.close();
         setRunning(false);
@@ -117,32 +133,34 @@ export default function MissionControl() {
         <p className="text-sm text-rest">One intent in. An agent economy out.</p>
 
         <textarea
-          className="h-32 w-full resize-none rounded border border-rest/40 bg-transparent p-3 text-sm text-score outline-none focus:border-tuning"
+          className="h-32 w-full resize-none rounded border border-rest/40 bg-transparent p-3 text-sm text-score outline-none focus-visible:border-tuning focus-visible:ring-2 focus-visible:ring-tuning"
           placeholder="Hand me a goal and a budget."
           value={intent}
           onChange={(e) => setIntent(e.target.value)}
         />
 
         <div className="flex items-center gap-2">
-          <label className="text-sm text-rest">Budget (USDT)</label>
+          <label htmlFor="budget-input" className="text-sm text-rest">Budget (USDT)</label>
           <input
+            id="budget-input"
             type="number"
             min={0.1}
             step={0.1}
             value={budget}
             onChange={(e) => setBudget(Number(e.target.value))}
-            className="w-24 rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus:border-tuning"
+            className="w-24 rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus-visible:border-tuning focus-visible:ring-2 focus-visible:ring-tuning"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm text-rest">Operator key</label>
+          <label htmlFor="operator-key-input" className="text-sm text-rest">Operator key</label>
           <input
+            id="operator-key-input"
             type="password"
             value={operatorKey}
             onChange={(e) => updateOperatorKey(e.target.value)}
             placeholder="ORCHESTRA_OPERATOR_KEY"
-            className="w-full rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus:border-tuning"
+            className="w-full rounded border border-rest/40 bg-transparent p-2 text-sm text-score outline-none focus-visible:border-tuning focus-visible:ring-2 focus-visible:ring-tuning"
           />
           <p className="text-xs text-rest">Held in this browser only — never shipped in the app bundle.</p>
         </div>
