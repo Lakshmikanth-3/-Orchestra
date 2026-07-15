@@ -31,10 +31,14 @@ export async function getTokenDecimals(tokenAddress: string): Promise<number> {
  * this module actually queries — X Layer only, for now. A mismatch fails loudly
  * rather than silently reading decimals() from the wrong chain.
  */
-export async function atomicToHuman(amountAtomic: string, tokenAddress: string, network?: string): Promise<number> {
-  if (!amountAtomic || !tokenAddress) return 0;
-  if (network && network !== XLAYER_NETWORK) {
-    throw new Error(`atomicToHuman: unsupported network "${network}" — this deployment only resolves decimals on ${XLAYER_NETWORK}`);
+export async function atomicToHuman(amountAtomic: string, tokenAddress: string, network: string): Promise<number> {
+  if (!amountAtomic || !tokenAddress) {
+    throw new Error(
+      `atomicToHuman: a real payment challenge is missing amount ("${amountAtomic}") or token address ("${tokenAddress}") — refusing to record a $0 cost for an unknown real payment`
+    );
+  }
+  if (!network || network !== XLAYER_NETWORK) {
+    throw new Error(`atomicToHuman: unsupported or missing network "${network}" — this deployment only resolves decimals on ${XLAYER_NETWORK}`);
   }
   const decimals = await getTokenDecimals(tokenAddress);
   return Number(amountAtomic) / 10 ** decimals;
