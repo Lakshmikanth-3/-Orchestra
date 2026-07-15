@@ -28,7 +28,11 @@ export interface WalletStatus {
 
 export async function walletStatus(): Promise<WalletStatus> {
   const res = await runJson(["wallet", "status"]);
-  const data = res.data as Record<string, unknown>;
+  // Same defensive unwrap as toPaymentResult below: onchainos output has been
+  // observed both wrapped (`{ data: {...} }`) and unwrapped for the same
+  // command family, so trusting one shape unconditionally risks a raw
+  // TypeError instead of a clear OnchainosError.
+  const data = (res.data ?? res) as Record<string, unknown>;
   return {
     loggedIn: Boolean(data.loggedIn),
     currentAccountId: String(data.currentAccountId ?? ""),
