@@ -35,6 +35,18 @@ export function validatePlanBudget(plan: Plan, budgetUsdt: number): void {
   }
 
   const ids = new Set(plan.tasks.map((t) => t.id));
+  if (ids.size !== plan.tasks.length) {
+    const seen = new Set<string>();
+    const duplicates = new Set<string>();
+    for (const t of plan.tasks) {
+      if (seen.has(t.id)) duplicates.add(t.id);
+      seen.add(t.id);
+    }
+    throw new Error(
+      `Plan has duplicate task id(s): ${[...duplicates].join(", ")} — every task id must be unique within a plan`
+    );
+  }
+
   for (const task of plan.tasks) {
     for (const dep of task.depends_on) {
       if (!ids.has(dep)) {

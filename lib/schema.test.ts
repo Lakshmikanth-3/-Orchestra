@@ -55,6 +55,16 @@ test("validatePlanBudget passes a valid diamond-shaped dependency graph", () => 
   assert.doesNotThrow(() => validatePlanBudget(plan, 1));
 });
 
+test("validatePlanBudget rejects duplicate task ids (regression: two tasks sharing an id silently overwrote each other's cost/result entries downstream)", () => {
+  const plan = PlanSchema.parse({
+    tasks: [
+      { id: "t1", capability: "market_data", prompt: "p", depends_on: [], max_spend_usdt: 0.1 },
+      { id: "t1", capability: "risk_flags", prompt: "p", depends_on: [], max_spend_usdt: 0 },
+    ],
+  });
+  assert.throws(() => validatePlanBudget(plan, 1), /duplicate task id/);
+});
+
 test("PlanSchema rejects more than 6 tasks", () => {
   const tasks = Array.from({ length: 7 }, (_, i) => ({
     id: `t${i}`,
