@@ -47,10 +47,9 @@ budget ceiling for hiring sub-agents.
 **Fee:** `0.5` (USDT is the implicit default — sent as a plain digit
 string, no unit/symbol)
 
-**Endpoint:** `https://<your-deployed-domain>/api/orchestrate`
-— placeholder until a host is picked. Must be real `https://`, publicly
-reachable, not localhost/private IP (confirmed hard requirement from the
-registration flow).
+**Endpoint:** `https://orchestra-asp.onrender.com/api/orchestrate`
+— live, verified: `/api/health` returns 200 and `/api/orchestrate` correctly
+demands real payment (402), confirmed 2026-07-16.
 
 ## Notes
 

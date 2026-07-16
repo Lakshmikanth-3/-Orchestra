@@ -3,8 +3,8 @@
 The first ASP on OKX.AI that is also a *customer* of OKX.AI: it hires, pays,
 and settles other live agents to deliver one goal under one budget.
 
-**Live listing:** _pending marketplace registration_ · **Mission Control:** _pending deploy_ ·
-**X Layer mainnet escrow:** _pending deploy_ (verified) · **Demo:** _pending_
+**Live listing:** _pending marketplace registration_ · **Mission Control:** [orchestra-asp.onrender.com](https://orchestra-asp.onrender.com) ·
+**X Layer mainnet escrow:** _pending deploy_ (verified on testnet) · **Demo:** _pending_
 
 ## How Orchestra runs on the OKX stack
 
