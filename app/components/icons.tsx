@@ -138,6 +138,59 @@ export function ChipIcon({ className }: IconProps) {
   );
 }
 
+export function BellIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={1.75} className={`${base} ${className ?? ""}`}>
+      <path d="M6 10a6 6 0 1 1 12 0c0 4 1.5 5.5 1.5 5.5H4.5S6 14 6 10Z" strokeLinejoin="round" strokeLinecap="round" />
+      <path d="M10 19a2 2 0 0 0 4 0" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ReceiptIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={1.75} className={`${base} ${className ?? ""}`}>
+      <path d="M6 3h12v18l-2-1.3-2 1.3-2-1.3-2 1.3-2-1.3L6 21V3Z" strokeLinejoin="round" />
+      <path d="M8.5 8h7M8.5 11.5h7M8.5 15h4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function MinusIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={2} className={`${base} ${className ?? ""}`}>
+      <path d="M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={2} className={`${base} ${className ?? ""}`}>
+      <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function PsychologyIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={1.75} className={`${base} ${className ?? ""}`}>
+      <path d="M9 3.5a4.5 4.5 0 0 0-4.2 6.1A3.5 3.5 0 0 0 6 16.4V19a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 3.5a4.5 4.5 0 0 1 4.2 6.1A3.5 3.5 0 0 1 17 16.4V19a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1v-4.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11 8.5v6M9 10.5h2M13 8.5h-2M9 13h2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function ExternalLinkIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" strokeWidth={1.75} className={`${base} ${className ?? ""}`}>
+      <path d="M9 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14 4h6v6M20 4 11 13" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export const CAPABILITY_ICON: Record<string, (p: IconProps) => React.JSX.Element> = {
   market_data: ChartIcon,
   news_scan: NewsIcon,
