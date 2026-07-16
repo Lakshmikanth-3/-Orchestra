@@ -26,12 +26,13 @@ One Next.js 16 (App Router, TypeScript) app, plus one Foundry contract project:
 - **`app/api/mc/orchestrate`** — same-origin operator route for the Mission Control UI itself
   (PRD FR-7's "manual UI runs may use an operator API key" path). The operator secret never
   reaches the browser bundle.
-- **`lib/planner.ts`** — real `@anthropic-ai/sdk` call (Claude Sonnet 5, structured outputs via
-  `output_config.format` + Zod) producing a budget-capped, dependency-ordered task DAG.
-- **`lib/skills/`** — internal, Claude-backed capabilities (`news_scan`, `risk_flags` use the
-  real hosted `web_search` tool; `synthesize_report` reasons only over data gathered by
-  earlier tasks). Always labeled `internal` in the ledger and report — never disguised as
-  an external hire.
+- **`lib/planner.ts`** — real call to Groq (`openai/gpt-oss-120b`, structured outputs via
+  strict JSON Schema, validated again with Zod on the way in) producing a budget-capped,
+  dependency-ordered task DAG.
+- **`lib/skills/`** — internal capabilities (`news_scan`, `risk_flags` use Anthropic's
+  real hosted `web_search` tool for cited results; `synthesize_report` reasons over data
+  gathered by earlier tasks via Groq, no tool use needed). Always labeled `internal` in the
+  ledger and report — never disguised as an external hire.
 - **`lib/coinank.ts` + `lib/onchainos.ts`** — the real market-data capability: calls
   `open-api.coinank.com`, and on a genuine HTTP 402 shells out to the already-authenticated
   `onchainos` CLI (`payment pay` / `payment charge`) to sign and pay via the real Agentic
@@ -76,7 +77,8 @@ Required for a fully live run:
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | planner + internal skills |
+| `GROQ_API_KEY` | planner (`lib/planner.ts`) + report synthesis (`lib/skills/synthesize-report.ts`) — free tier at console.groq.com |
+| `ANTHROPIC_API_KEY` | news-scan + risk-flags internal skills only — needs Anthropic's hosted `web_search` tool for real cited results |
 | `ORCHESTRA_AGENTIC_WALLET` | Orchestra's real EVM address (from `onchainos wallet balance`) |
 | `OKX_API_KEY` / `OKX_SECRET_KEY` / `OKX_PASSPHRASE` | inbound x402 facilitator (OKX Developer Portal) |
 | `DEPLOYER_PRIVATE_KEY` | X Layer mainnet contract deploy (never pasted in chat — fill directly in `.env`); also signs the runtime escrow mirror calls in `lib/escrow.ts` |
