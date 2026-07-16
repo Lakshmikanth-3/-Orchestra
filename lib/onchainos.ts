@@ -13,11 +13,20 @@ async function runJson(args: string[], signal?: AbortSignal): Promise<Record<str
     const message = err instanceof Error ? err.message : String(err);
     throw new OnchainosError(`onchainos ${args.join(" ")} failed: ${message}`);
   }
-  try {
-    return JSON.parse(stdout);
-  } catch {
-    throw new OnchainosError(`onchainos ${args.join(" ")} returned non-JSON output: ${stdout}`);
+  // onchainos sometimes emits more than one JSON object on stdout -- e.g. an
+  // account-auto-creation notice line ahead of the actual result line (seen
+  // on a host with no prior `wallet login` session). The real result is
+  // always the last line, so parse newline-delimited and take that one
+  // rather than JSON.parse-ing the whole (invalid, multi-object) blob.
+  const lines = stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      return JSON.parse(lines[i]);
+    } catch {
+      continue;
+    }
   }
+  throw new OnchainosError(`onchainos ${args.join(" ")} returned non-JSON output: ${stdout}`);
 }
 
 export interface WalletStatus {
