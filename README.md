@@ -3,8 +3,8 @@
 The first ASP on OKX.AI that is also a *customer* of OKX.AI: it hires, pays,
 and settles other live agents to deliver one goal under one budget.
 
-**Live listing:** _pending marketplace registration_ · **Mission Control:** [orchestra-asp.onrender.com](https://orchestra-asp.onrender.com) ·
-**X Layer mainnet escrow:** _pending deploy_ (verified on testnet) · **Demo:** _pending_
+**Live listing:** Agent #6217 (ASP) — submitted for OKX review · **Mission Control:** [orchestra-asp.onrender.com](https://orchestra-asp.onrender.com) ·
+**X Layer mainnet escrow:** verified end-to-end on testnet; mainnet deploy deliberately deferred · **Demo:** _pending_
 
 ## How Orchestra runs on the OKX stack
 
@@ -12,7 +12,7 @@ and settles other live agents to deliver one goal under one budget.
 |---|---|
 | x402 / Agent Payments Protocol | inbound gate `app/api/orchestrate/route.ts` (via `@okxweb3/x402-next`) **and** outbound hires `lib/coinank.ts` + `lib/onchainos.ts` |
 | Agentic Wallet | identity + treasury — logged in via `onchainos wallet login`; real EVM address in `.env` (`ORCHESTRA_AGENTIC_WALLET`) |
-| OKX.AI marketplace | listed A2MCP service (pending registration); consumes the live CoinAnk ASP at `open-api.coinank.com` |
+| OKX.AI marketplace | listed A2MCP service — Agent #6217 (ASP), submitted for OKX review; consumes the live CoinAnk ASP at `open-api.coinank.com` |
 | Onchain OS | registration + wallet binding via the `onchainos` CLI (v4.2.4) |
 | X Layer | `contracts/OrchestraEscrow.sol` — per-task micro-escrow, chainId 196, RPC `https://rpc.xlayer.tech` |
 
@@ -53,9 +53,11 @@ One Next.js 16 (App Router, TypeScript) app, plus one Foundry contract project:
   mainnet, viem), keyed by `keccak256(runId:taskId)` so plan task ids that repeat across
   runs never collide on-chain. Entirely optional — unset `ORCHESTRA_ESCROW_ADDRESS` and
   it's skipped, since it mirrors an already-completed payment rather than gating it.
-- **`contracts/`** — `OrchestraEscrow.sol`, a Foundry project. 6/6 tests passing
-  (lock/settle payout math, refund, duplicate-id guard, access control). Deploy + verify
-  on OKLink in one step (see `contracts/script/Deploy.s.sol` for the full command):
+- **`contracts/`** — `OrchestraEscrow.sol`, a Foundry project. 8/8 tests passing
+  (lock/settle payout math, refund, duplicate-id guard, access control on lock/settle/refund).
+  Deployed and verified end-to-end on X Layer testnet (chain 1952) — real `lock`/`settle`/`refund`
+  transactions confirmed on-chain. Deploy + verify on mainnet + OKLink in one step (see
+  `contracts/script/Deploy.s.sol` for the full command):
   `forge script script/Deploy.s.sol:Deploy --rpc-url https://rpc.xlayer.tech --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify --verifier oklink --verifier-url https://www.oklink.com/api/v5/explorer/contract/verify-source-code-plugin/XLAYER --verifier-api-key $OKLINK_API_KEY`.
   After deploy, set `ORCHESTRA_ESCROW_ADDRESS` to the printed address to turn on the mirror.
 
@@ -96,7 +98,7 @@ not through a key stored in this repo.
 ```bash
 pnpm test               # fast, hermetic unit tests (schema, ledger, report, CoinAnk decode logic)
 pnpm test:live          # real network test against the live CoinAnk API (no credentials needed)
-cd contracts && forge test   # contract tests (6/6 passing)
+cd contracts && forge test   # contract tests (8/8 passing)
 ```
 
 ## Docker
@@ -112,23 +114,27 @@ the mounted volume), never one baked into the image.
 
 ## Deploying to Render (free tier)
 
-`render.yaml` is a ready-to-use [Blueprint](https://render.com/docs/blueprint-spec) that builds
-straight from `Dockerfile` and wires up `/api/health` as the health check.
+Live now at [orchestra-asp.onrender.com](https://orchestra-asp.onrender.com) — `/api/health` and
+the real x402 gate on `/api/orchestrate` both verified live. `render.yaml` is a ready-to-use
+[Blueprint](https://render.com/docs/blueprint-spec) that builds straight from `Dockerfile` and
+wires up `/api/health` as the health check.
 
 1. Push this repo to GitHub (Render deploys from a connected Git repo).
 2. In the Render dashboard: **New > Blueprint**, point it at the repo — it reads `render.yaml`
    automatically.
-3. Fill in the secret env vars Render will prompt for (`ANTHROPIC_API_KEY`,
-   `ORCHESTRA_AGENTIC_WALLET`, `OKX_API_KEY`/`OKX_SECRET_KEY`/`OKX_PASSPHRASE`,
-   `OKLINK_API_KEY`, `ORCHESTRA_OPERATOR_KEY`) — same values as your local `.env`.
-4. After first deploy, open a shell on the instance (Render dashboard > Shell) and run
-   `onchainos wallet login <email>` once so outbound CoinAnk payments have a real signed
-   session to use.
+3. Fill in the secret env vars Render will prompt for (`GROQ_API_KEY`, `ORCHESTRA_AGENTIC_WALLET`,
+   `OKX_API_KEY`/`OKX_SECRET_KEY`/`OKX_PASSPHRASE`, `OKLINK_API_KEY`, `ORCHESTRA_OPERATOR_KEY`) —
+   same values as your local `.env`. `GROQ_MODEL`/`GROQ_AGENTIC_MODEL` can stay blank (sensible
+   defaults in code).
+4. Outbound CoinAnk payments still need a signed `onchainos` wallet session on the instance —
+   see the free-tier trade-off below, this is currently **not achievable on the free plan**.
 
-**Known free-tier trade-off (not hidden):** Render's free plan has no persistent disk and
-spins the instance down after ~15 minutes idle. That means the SQLite ledger
-(`ORCHESTRA_DB_PATH`) and the `onchainos` wallet session from step 4 do **not** survive a
-redeploy or a cold-start recycle — every idle-then-woken instance starts with an empty
-ledger and a logged-out wallet. This conflicts with the PRD's "a listed ASP cannot cold-sleep"
+**Known free-tier trade-offs (not hidden):** Render's free plan has no persistent disk, spins
+the instance down after ~15 minutes idle, **and has no Shell/SSH access at all** (confirmed —
+that's a paid-plan-only feature). That means there is currently no way to run
+`onchainos wallet login` against the deployed instance, so outbound CoinAnk payments cannot be
+signed from this deployment yet; it also means the SQLite ledger (`ORCHESTRA_DB_PATH`) would not
+survive a redeploy or cold-start recycle even if a session could be established. This conflicts
+with the PRD's "a listed ASP cannot cold-sleep"
 requirement (§7.1). The real fix is a paid instance + persistent disk; free tier is what's
 running for now because that's what's available, not because the gap is invisible.
