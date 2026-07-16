@@ -57,3 +57,57 @@ export async function groqChat({ system, user, maxTokens, jsonSchema }: GroqChat
   }
   return content;
 }
+
+export const GROQ_AGENTIC_MODEL = process.env.GROQ_AGENTIC_MODEL || "groq/compound-mini";
+
+export interface GroqAgenticResult {
+  text: string;
+  citedUrls: string[];
+}
+
+/**
+ * Calls Groq's Compound system, which runs a real, live web search server-side
+ * when it decides the query needs one. Citations are pulled from the real
+ * search_results Groq's own tool call returned -- never invented.
+ */
+export async function groqAgenticChat({ system, user, maxTokens }: { system: string; user: string; maxTokens: number }): Promise<GroqAgenticResult> {
+  if (!process.env.GROQ_API_KEY) {
+    throw new GroqError("GROQ_API_KEY is not set");
+  }
+
+  const res = await fetch(GROQ_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: GROQ_AGENTIC_MODEL,
+      max_tokens: maxTokens,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+
+  if (!res.ok) {
+    throw new GroqError(`Groq agentic chat completion failed: HTTP ${res.status}: ${await res.text()}`);
+  }
+
+  const body = await res.json();
+  const message = body.choices?.[0]?.message;
+  const content = message?.content;
+  if (typeof content !== "string" || content.length === 0) {
+    throw new GroqError(`Groq agentic response had no message content (finish_reason=${body.choices?.[0]?.finish_reason})`);
+  }
+
+  const citedUrls = new Set<string>();
+  for (const tool of message?.executed_tools ?? []) {
+    for (const result of tool?.search_results?.results ?? []) {
+      if (typeof result?.url === "string") citedUrls.add(result.url);
+    }
+  }
+
+  return { text: content, citedUrls: Array.from(citedUrls) };
+}
