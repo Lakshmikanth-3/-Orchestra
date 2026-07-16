@@ -8,6 +8,30 @@ const XLAYER_MAINNET = {
   rpcUrls: { default: { http: ["https://rpc.xlayer.tech"] } },
 } as const;
 
+const XLAYER_TESTNET = {
+  id: 1952,
+  name: "X Layer Testnet",
+  nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 },
+  rpcUrls: { default: { http: ["https://testrpc.xlayer.tech/terigon"] } },
+} as const;
+
+/**
+ * Mainnet by default (production behavior unchanged). Set
+ * ORCHESTRA_ESCROW_NETWORK=testnet to point every call in this module at
+ * X Layer testnet instead -- for exercising this real integration code
+ * itself against a real (worthless) chain, not just the deployed contract
+ * via raw cast calls.
+ */
+function escrowNetwork(): "mainnet" | "testnet" {
+  return process.env.ORCHESTRA_ESCROW_NETWORK === "testnet" ? "testnet" : "mainnet";
+}
+
+function envVarNames(): { addr: string; key: string } {
+  return escrowNetwork() === "testnet"
+    ? { addr: "ORCHESTRA_ESCROW_ADDRESS_TESTNET", key: "DEPLOYER_PRIVATE_KEY_TESTNET" }
+    : { addr: "ORCHESTRA_ESCROW_ADDRESS", key: "DEPLOYER_PRIVATE_KEY" };
+}
+
 const ESCROW_ABI = parseAbi([
   "function lock(bytes32 id, address client, address agent) external payable",
   "function settle(bytes32 id) external",
@@ -34,7 +58,8 @@ export interface EscrowMirrorResult {
 
 /** True only when a deployed escrow contract and a signing key are both configured — the on-chain mirror is optional (Vision Layer), never a fallback for the real x402 payment, which already happened regardless. */
 export function isEscrowConfigured(): boolean {
-  return Boolean(process.env.ORCHESTRA_ESCROW_ADDRESS && process.env.DEPLOYER_PRIVATE_KEY);
+  const { addr, key } = envVarNames();
+  return Boolean(process.env[addr] && process.env[key]);
 }
 
 /** Exported for testing: plan task ids (e.g. "t1") only guarantee uniqueness within one run, not on-chain across runs, so every escrow key is scoped to runId. */
@@ -49,11 +74,13 @@ function requireEnv(name: string): string {
 }
 
 function clients() {
-  const account = privateKeyToAccount(requireEnv("DEPLOYER_PRIVATE_KEY") as `0x${string}`);
-  const escrowAddress = requireEnv("ORCHESTRA_ESCROW_ADDRESS") as `0x${string}`;
-  const transport = http(XLAYER_MAINNET.rpcUrls.default.http[0]);
-  const wallet = createWalletClient({ account, chain: XLAYER_MAINNET, transport });
-  const publicClient = createPublicClient({ chain: XLAYER_MAINNET, transport });
+  const { addr, key } = envVarNames();
+  const chain = escrowNetwork() === "testnet" ? XLAYER_TESTNET : XLAYER_MAINNET;
+  const account = privateKeyToAccount(requireEnv(key) as `0x${string}`);
+  const escrowAddress = requireEnv(addr) as `0x${string}`;
+  const transport = http(chain.rpcUrls.default.http[0]);
+  const wallet = createWalletClient({ account, chain, transport });
+  const publicClient = createPublicClient({ chain, transport });
   return { account, escrowAddress, wallet, publicClient };
 }
 
