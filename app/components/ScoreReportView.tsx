@@ -1,6 +1,22 @@
 "use client";
 
+import { marked } from "marked";
+import DOMPurify from "dompurify";
 import { CAPABILITY_ICON, AlertIcon, ReceiptIcon, ExternalLinkIcon, ReportIcon } from "./icons";
+
+marked.setOptions({ breaks: true });
+
+/** Renders a skill's real Markdown output as real HTML -- sanitized since the
+ * source text ultimately comes from live web search results, not just our
+ * own prompts. */
+function renderSkillMarkdown(md: string): { __html: string } {
+  const html = marked.parse(md, { async: false }) as string;
+  const clean = DOMPurify.sanitize(html);
+  // Wrap tables so a wide one scrolls inside its own card instead of
+  // blowing out the report's two-column layout.
+  const wrapped = clean.replace(/<table>/g, '<div class="table-scroll"><table>').replace(/<\/table>/g, "</table></div>");
+  return { __html: wrapped };
+}
 
 export interface ReportSection {
   taskId: string;
@@ -53,7 +69,7 @@ function SectionCard({ section }: { section: ReportSection }) {
           {section.error ? ` (${section.error})` : ""}
         </p>
       ) : typeof section.content === "string" ? (
-        <p className="font-body-sm text-body-sm text-pit/80 whitespace-pre-wrap leading-relaxed">{section.content}</p>
+        <div className="report-prose font-body-sm text-body-sm text-pit/80" dangerouslySetInnerHTML={renderSkillMarkdown(section.content)} />
       ) : section.content ? (
         <pre className="font-data-mono-sm text-data-mono-sm text-pit/80 bg-black/5 rounded-sm p-3 overflow-x-auto max-h-64">
           {JSON.stringify(section.content, null, 2)}

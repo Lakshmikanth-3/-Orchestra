@@ -137,3 +137,75 @@ body {
 .stave-line {
   background: repeating-linear-gradient(to bottom, transparent, transparent 19px, rgba(11, 14, 20, 0.12) 20px);
 }
+
+/* Real Markdown output from Groq skills (news_scan/risk_flags/synthesize_report),
+   rendered on the light "paper" Score Report surface. */
+.report-prose {
+  line-height: 1.65;
+}
+.report-prose > * + * {
+  margin-top: 0.85em;
+}
+.report-prose h1,
+.report-prose h2,
+.report-prose h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--pit);
+  line-height: 1.3;
+}
+.report-prose h1 { font-size: 17px; }
+.report-prose h2 { font-size: 15.5px; }
+.report-prose h3 { font-size: 14px; }
+.report-prose strong { color: var(--pit); font-weight: 700; }
+.report-prose em { font-style: italic; }
+.report-prose a {
+  color: var(--brass);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.report-prose ul,
+.report-prose ol {
+  padding-left: 1.3em;
+}
+.report-prose li + li {
+  margin-top: 0.35em;
+}
+.report-prose li::marker {
+  color: var(--brass);
+}
+.report-prose hr {
+  border: none;
+  border-top: 1px solid rgba(11, 14, 20, 0.12);
+  margin: 1em 0;
+}
+.report-prose code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(11, 14, 20, 0.06);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.report-prose .table-scroll {
+  overflow-x: auto;
+}
+.report-prose table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
+}
+.report-prose th,
+.report-prose td {
+  border: 1px solid rgba(11, 14, 20, 0.12);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.report-prose thead th {
+  background: rgba(11, 14, 20, 0.05);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pit);
+}
