@@ -16,6 +16,14 @@
 
 FROM node:22-bookworm-slim AS base
 RUN corepack enable
+# Bake the pinned pnpm version into the image at build time. Without this,
+# corepack re-downloads it from the npm registry on every single container
+# start (visible as "Corepack is about to download..." before `next start`
+# even runs) -- on a free-tier host that cold-sleeps and wakes on every
+# request, that's a real network round-trip standing between "container
+# started" and "first byte served", and if that registry call stalls or
+# rate-limits, the container never responds at all.
+RUN corepack prepare pnpm@9.15.9 --activate
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # --- Download & verify the real onchainos CLI binary (matches ~/.agents install) ---
