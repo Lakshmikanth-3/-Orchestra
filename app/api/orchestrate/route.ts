@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { withX402 } from "@okxweb3/x402-next";
-import { getResourceServer, facilitatorCredsConfigured, XLAYER_NETWORK, RUN_PRICE_USD } from "@/lib/x402-server";
+import { getResourceServer, facilitatorCredsConfigured, orchestrateResourceUrl, XLAYER_NETWORK, RUN_PRICE_USD } from "@/lib/x402-server";
 import { startRun, PlannerError, OrchestrateRequestSchema } from "@/lib/orchestrate-handler";
 
 async function handlePaidOrchestrate(req: NextRequest): Promise<NextResponse> {
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
         payTo: process.env.ORCHESTRA_AGENTIC_WALLET!,
       },
       description: "Orchestra run: intent -> hired agents -> settled report",
+      ...(orchestrateResourceUrl() ? { resource: orchestrateResourceUrl() } : {}),
     },
     getResourceServer()
   );

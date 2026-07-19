@@ -5,6 +5,19 @@ import { ExactEvmScheme } from "@okxweb3/x402-evm/exact/server";
 export const XLAYER_NETWORK = "eip155:196";
 export const RUN_PRICE_USD = "$0.5";
 
+/**
+ * The x402 SDK falls back to the raw incoming request's own URL for the
+ * `resource.url` field in its 402 challenge when this isn't set -- which,
+ * behind Render's reverse proxy, reports the container's internal address
+ * (e.g. http://localhost:10000) rather than the real public one. Any caller
+ * that treats `resource.url` as the identity of the paid resource (which is
+ * exactly what an x402 validator does) would find that address unreachable.
+ */
+export function orchestrateResourceUrl(): string | undefined {
+  const base = process.env.ORCHESTRA_PUBLIC_URL;
+  return base ? `${base.replace(/\/$/, "")}/api/orchestrate` : undefined;
+}
+
 export function facilitatorCredsConfigured(): boolean {
   // ORCHESTRA_AGENTIC_WALLET is included here, not just the OKX creds: it's
   // the accepts.payTo recipient for every inbound payment. Without it the

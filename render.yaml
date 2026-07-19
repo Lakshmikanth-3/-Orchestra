@@ -45,3 +45,5 @@ services:
         value: ./data/orchestra.db
       - key: NODE_ENV
         value: production
+      - key: ORCHESTRA_PUBLIC_URL
+        value: https://orchestra-asp.onrender.com
