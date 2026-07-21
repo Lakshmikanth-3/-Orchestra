@@ -21,8 +21,7 @@ async function handlePaidOrchestrate(req: NextRequest): Promise<NextResponse> {
   }
 }
 
-/** Real, paid A2MCP entry point — every machine-to-machine caller (OKX.AI listing) goes through here. */
-export async function POST(req: NextRequest) {
+async function gatedOrchestrate(req: NextRequest): Promise<NextResponse> {
   if (!facilitatorCredsConfigured()) {
     return NextResponse.json(
       {
@@ -51,4 +50,21 @@ export async function POST(req: NextRequest) {
     getResourceServer()
   );
   return wrapped(req);
+}
+
+/** Real, paid A2MCP entry point — every machine-to-machine caller (OKX.AI listing) goes through here. */
+export async function POST(req: NextRequest) {
+  return gatedOrchestrate(req);
+}
+
+/**
+ * Some x402 clients/validators probe with GET before the real paid POST, to
+ * check whether a resource is x402-gated at all -- Next.js returns a plain
+ * 405 for any method a route doesn't export, which reads as "not a valid
+ * x402 service" rather than "payment required". Gating GET the same way
+ * means the 402 challenge is visible regardless of which method a caller
+ * probes with first.
+ */
+export async function GET(req: NextRequest) {
+  return gatedOrchestrate(req);
 }
