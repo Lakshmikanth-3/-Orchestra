@@ -1,0 +1,19 @@
+name: Keep Render instance warm
+
+# Render's free plan sleeps a web service after 15 minutes with no inbound
+# traffic (any HTTP request resets that timer) and takes ~1 minute to cold
+# start again -- long enough that an external platform test (e.g. OKX.AI's
+# validator) hitting a sleeping instance can see no response and time out.
+# Pinging /api/health well inside that 15-minute window keeps it warm for
+# free, with no plan upgrade or third-party uptime service required.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: curl -sf --max-time 30 https://orchestra-asp.onrender.com/api/health
